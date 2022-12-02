@@ -154,25 +154,25 @@ export async function handler(credentials: RelayerParams) {
   /**
    * 1.) Compose a send tx of the stablecoins from multisig (if there is any)
    */
-  // if (Object.keys(availableStablecoinsInMultisig).length > 0) {
-  //   for (const s of Object.keys(availableStablecoinsInMultisig)) {
-  //     const stablecoin = availableStablecoinsInMultisig[s];
-  //     const tx = createTxTransfeERC20(
-  //       provider,
-  //       stablecoin.address,
-  //       ERC20ABI,
-  //       ensWallet,
-  //       stablecoin.balance as BigNumber,
-  //     );
-  //     if (tx === false) {
-  //       console.log(
-  //         'Failed to create tx for stablecoin transfer. Aborting operation.',
-  //       );
-  //       return;
-  //     }
-  //     batchedTransaction.push(tx);
-  //   }
-  // }
+  if (Object.keys(availableStablecoinsInMultisig).length > 0) {
+    for (const s of Object.keys(availableStablecoinsInMultisig)) {
+      const stablecoin = availableStablecoinsInMultisig[s];
+      const tx = createTxTransfeERC20(
+        provider,
+        stablecoin.address,
+        ERC20ABI,
+        ensWallet,
+        stablecoin.balance as BigNumber,
+      );
+      if (tx === false) {
+        console.log(
+          'Failed to create tx for stablecoin transfer. Aborting operation.',
+        );
+        return;
+      }
+      batchedTransaction.push(tx);
+    }
+  }
 
   /**
    * 2.) Compose a withdraw tx on controller.ens.eth from the multisig
