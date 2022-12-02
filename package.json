@@ -1,0 +1,66 @@
+{
+  "name": "autotask",
+  "version": "1.0.0",
+  "description": "An autotask for OpenZeppelin.",
+  "main": "index.js",
+  "scripts": {
+    "build": "rimraf ./tmp && rimraf ./dist && tsc --module esnext && npm run postbuild",
+    "deploy": "./node_modules/.bin/ts-node ./helpers/autotask-deployer.ts --module esnext",
+    "postbuild": "./node_modules/.bin/rollup --config rollup.config.ts --configPlugin typescript",
+    "simulate": "npx nodemon",
+    "lint": "eslint . --ext .ts",
+    "prettier-format": "run-script-os",
+    "prettier-format:win32": "prettier --config .prettierrc \"./src/**/*.ts\" --write",
+    "prettier-format:darwin:linux": "prettier --config .prettierrc 'src/**/*.ts' --write",
+    "prettier-format:default": "prettier --config .prettierrc 'src/**/*.ts' --write",
+    "prettier-watch": "run-script-os",
+    "prettier-watch:win32": "onchange \"src/**/*.ts\" -- prettier --write {{changed}}",
+    "prettier-watch:darwin:linux": "onchange 'src/**/*.ts' -- prettier --write {{changed}}",
+    "prettier-watch:default": "onchange 'src/**/*.ts' -- prettier --write {{changed}}",
+    "test": "jest --watchAll"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "npm run test && npm run prettier-format && npm run lint"
+    }
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@babel/preset-env": "^7.20.2",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-commonjs": "^23.0.3",
+    "@rollup/plugin-json": "^5.0.2",
+    "@rollup/plugin-node-resolve": "^15.0.1",
+    "@rollup/plugin-typescript": "^10.0.1",
+    "@types/jest": "^28.1.8",
+    "@types/node": "^18.6.1",
+    "@typescript-eslint/eslint-plugin": "^5.31.0",
+    "@typescript-eslint/parser": "^5.31.0",
+    "axios": "^1.2.0",
+    "defender-relay-client": "^1.37.0",
+    "dotenv": "^16.0.3",
+    "eslint": "^8.20.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-jest": "^26.6.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.1",
+    "jest": "^28.1.3",
+    "nodemon": "^2.0.19",
+    "onchange": "^7.1.0",
+    "prettier": "^2.7.1",
+    "rimraf": "^3.0.2",
+    "rollup": "^3.5.0",
+    "run-script-os": "^1.1.6",
+    "ts-jest": "^28.0.7",
+    "ts-node": "^10.9.1",
+    "typescript": "^4.7.4"
+  },
+  "dependencies": {
+    "defender-autotask-client": "^1.37.0",
+    "ethers": "^5.7.2",
+    "jest-cucumber": "^3.0.1",
+    "postinstall": "^0.8.0"
+  }
+}
