@@ -16,13 +16,12 @@ import {
   filterNonZeroStablecoinBalance,
   filterStablcoinsBelowThreshold,
   getAllUSDBalance,
-  getEthUsdRate,
   performBatchedTransaction,
   stablecoinConfigurationToModel,
 } from './services/treasury.service';
 import { BigNumber, ethers } from 'ethers';
 import { ERC20ABI } from './models/contracts/erc20.abi';
-import { getERC20Balance, getETHBalance } from './services/accounts.service';
+import { getETHBalance } from './services/accounts.service';
 import {
   getCowSwapPlaceOrder,
   getCowSwapTradeQuote,
@@ -31,6 +30,7 @@ import { CowswapTradeKindEnum } from './models/cowswap-trade-kind.enum';
 import { CowSwapSuccessResponseModel } from './models/cowswap-success-response.model';
 import { EnvInfo } from './models/dot-env.type';
 import { simulate } from './services/tenderly.service';
+import { StableCoinModel } from './models/stablecoin.model';
 
 export async function handler(credentials: RelayerParams) {
   if (
@@ -53,11 +53,6 @@ export async function handler(credentials: RelayerParams) {
   const environment = relayerInfo.network as EnvironmentsEnum;
   if (generalConfigurations.validEnvironments.includes(environment) === false) {
     console.log('Network is not supported. Aborting operation.');
-    return;
-  }
-  const ethUsdRate = await getEthUsdRate(provider, environment);
-  if (ethUsdRate === false) {
-    console.log('ETH USD unresolved. Aborting operation.');
     return;
   }
   const ensWallet = generalConfigurations.ensWallet[environment];
@@ -83,7 +78,7 @@ export async function handler(credentials: RelayerParams) {
   }
 
   /**
-   * Check the stablecoin balance of wallet. and pick the non-zero ones
+   * Check the stablecoin balance of the multisig and pick the non-zero ones
    */
   const stablecoinMultisigHoldings = await getAllUSDBalance(
     provider,
@@ -91,15 +86,6 @@ export async function handler(credentials: RelayerParams) {
     stablecoins,
   );
   if (stablecoinMultisigHoldings === false) {
-    console.log(
-      'Stablecoin multisig balance query failed. Aborting operation.',
-    );
-    return;
-  }
-  const availableStablecoinsInMultisig = filterNonZeroStablecoinBalance(
-    stablecoinMultisigHoldings,
-  );
-  if (availableStablecoinsInMultisig === false) {
     console.log(
       'Stablecoin multisig balance query failed. Aborting operation.',
     );
@@ -154,6 +140,15 @@ export async function handler(credentials: RelayerParams) {
   /**
    * 1.) Compose a send tx of the stablecoins from multisig (if there is any)
    */
+  const availableStablecoinsInMultisig = filterNonZeroStablecoinBalance(
+    stablecoinMultisigHoldings,
+  );
+  if (availableStablecoinsInMultisig === false) {
+    console.log(
+      'Stablecoin multisig balance query failed. Aborting operation.',
+    );
+    return;
+  }
   if (Object.keys(availableStablecoinsInMultisig).length > 0) {
     for (const s of Object.keys(availableStablecoinsInMultisig)) {
       const stablecoin = availableStablecoinsInMultisig[s];
