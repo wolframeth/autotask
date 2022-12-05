@@ -1,12 +1,45 @@
-import { Contract } from 'ethers';
+import { ensNormalize } from '@ethersproject/hash';
+import { Contract, ethers } from 'ethers';
 import { ERC20ABI } from '../models/contracts/erc20.abi';
+
+export function is0xAddressValid(address: string) {
+  try {
+    ethers.utils.getAddress(address);
+    if (!/^(0x)?[0-9a-f]{40}$/i.test(address)) {
+      throw false;
+    } else if (
+      /^(0x)?[0-9a-f]{40}$/.test(address) ||
+      /^(0x)?[0-9A-F]{40}$/.test(address)
+    ) {
+      return true;
+    } else {
+      return true;
+    }
+  } catch (e) {
+    return false;
+  }
+}
+
+export function isEnsAddressValid(ens: string) {
+  try {
+    ensNormalize(ens);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
 
 export async function resolveAddress(provider: any, address: string) {
   try {
+    const isENS = address.indexOf('.eth') > -1;
+    if (isENS === true && isEnsAddressValid(address) === false) {
+      throw false;
+    }
+    if (isENS === false && is0xAddressValid(address) === false) {
+      throw false;
+    }
     const addressResolved =
-      address.indexOf('.eth') > -1
-        ? await provider.resolveName(address)
-        : address;
+      isENS === true ? await provider.resolveName(address) : address;
     return addressResolved;
   } catch (e) {
     console.log('(resolveAddress) An unknown error has occured', e);
@@ -16,6 +49,13 @@ export async function resolveAddress(provider: any, address: string) {
 
 export async function getETHBalance(provider: any, address: string) {
   try {
+    const isENS = address.indexOf('.eth') > -1;
+    if (isENS === true && isEnsAddressValid(address) === false) {
+      throw false;
+    }
+    if (isENS === false && is0xAddressValid(address) === false) {
+      throw false;
+    }
     const addressResolved = resolveAddress(provider, address);
     const userBalance = await provider.getBalance(addressResolved);
     return userBalance;
@@ -31,6 +71,20 @@ export async function getERC20Balance(
   erc20Address: string,
 ) {
   try {
+    const isENS = address.indexOf('.eth') > -1;
+    if (isENS === true && isEnsAddressValid(address) === false) {
+      throw false;
+    }
+    if (isENS === false && is0xAddressValid(address) === false) {
+      throw false;
+    }
+    const isENSERCAddress = address.indexOf('.eth') > -1;
+    if (isENSERCAddress === true && isEnsAddressValid(erc20Address) === false) {
+      throw false;
+    }
+    if (isENSERCAddress === false && is0xAddressValid(erc20Address) === false) {
+      throw false;
+    }
     const erc20 = new Contract(erc20Address, ERC20ABI, provider);
     const addressResolved = resolveAddress(provider, address);
     const userBalance = await erc20.balanceOf(addressResolved);
