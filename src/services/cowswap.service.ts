@@ -2,6 +2,18 @@ import { BigNumber, ethers } from 'ethers';
 import { generalConfigurations } from '../configurations/general.conf';
 import { CowswapTradeKindEnum } from '../models/cowswap-trade-kind.enum';
 import { EnvironmentsEnum } from '../models/environments.enum';
+import { resolveAddress } from './accounts.service';
+import { isEnsAddressValid } from './misc.service';
+
+function isValidTimestamp(dateTimestamp: number) {
+  var minDate = new Date('1970-01-01 00:00:01').getTime();
+  var maxDate = new Date('3000-01-19 00:00:00').getTime();
+  return dateTimestamp > minDate && dateTimestamp < maxDate;
+}
+
+function isNumeric(n: number) {
+  return !isNaN(parseFloat(n.toString())) && isFinite(n);
+}
 
 export enum CowSwapAPIEndpointsEnum {
   ORDERS_V1 = 'api/v1/orders',
@@ -9,6 +21,7 @@ export enum CowSwapAPIEndpointsEnum {
 }
 
 export async function getCowSwapPlaceOrder(
+  provider: any,
   environment: EnvironmentsEnum,
   trader: string,
   sellToken: string,
@@ -21,11 +34,74 @@ export async function getCowSwapPlaceOrder(
   tradeKind: CowswapTradeKindEnum,
 ) {
   try {
+    if (
+      isNumeric(parseInt(buyAmount)) === false ||
+      isNumeric(parseInt(sellAmount)) === false ||
+      buyAmount === '0' ||
+      parseInt(buyAmount) < 0 ||
+      sellAmount === '0' ||
+      parseInt(sellAmount) < 0
+    ) {
+      throw 'Invalid buyAmount or sellAmount';
+    }
+    console.log(validTimeOfOrder, isValidTimestamp(validTimeOfOrder * 1000));
+    if (isValidTimestamp(validTimeOfOrder * 1000) === false) {
+      throw 'Invalid validTimeOfOrder';
+    }
+    const tradeKinds = Object.values(CowswapTradeKindEnum).map((k) => k);
+    if (tradeKinds.includes(tradeKind) === false) {
+      throw 'Invalid tradeKind';
+    }
+    let trueDestination: string | boolean = destination;
+    let trueDestinationIsEns = trueDestination.indexOf('.eth') > -1;
+    if (trueDestination.indexOf('.eth') > -1) {
+      trueDestination = await resolveAddress(provider, trueDestination);
+    }
+    if (
+      trueDestination === false ||
+      (trueDestinationIsEns === true &&
+        isEnsAddressValid(destination) === false)
+    ) {
+      throw 'Invalide distination address';
+    }
+    let trueTrader: string | boolean = trader;
+    let trueTraderIsEns = trueTrader.indexOf('.eth') > -1;
+    if (trueTrader.indexOf('.eth') > -1) {
+      trueTrader = await resolveAddress(provider, trueTrader);
+    }
+    if (
+      trueTrader === false ||
+      (trueTraderIsEns === true && isEnsAddressValid(trader) === false)
+    ) {
+      throw 'Invalid trader address';
+    }
+    let trueSellToken: string | boolean = sellToken;
+    let sellTokenIsEns = trueSellToken.indexOf('.eth') > -1;
+    if (trueSellToken.indexOf('.eth') > -1) {
+      trueSellToken = await resolveAddress(provider, trueSellToken);
+    }
+    if (
+      trueSellToken === false ||
+      (sellTokenIsEns === true && isEnsAddressValid(sellToken) === false)
+    ) {
+      throw 'Invalid sellToken';
+    }
+    let trueBuyToken: string | boolean = buyToken;
+    let buyTokenIsEns = trueBuyToken.indexOf('.eth') > -1;
+    if (trueBuyToken.indexOf('.eth') > -1) {
+      trueBuyToken = await resolveAddress(provider, trueBuyToken);
+    }
+    if (
+      trueBuyToken === false ||
+      (buyTokenIsEns === true && isEnsAddressValid(buyToken) === false)
+    ) {
+      throw 'Invalid buyToken';
+    }
     const coswapAPI = generalConfigurations.cowswapAPI[environment];
     const call = [coswapAPI, CowSwapAPIEndpointsEnum.ORDERS_V1].join('/');
     const quoteParams: any = {
-      sellToken: sellToken,
-      buyToken: buyToken,
+      sellToken: trueSellToken,
+      buyToken: trueBuyToken,
       sellAmount: sellAmount,
       buyAmount: buyAmount,
       validTo: validTimeOfOrder,
@@ -33,9 +109,9 @@ export async function getCowSwapPlaceOrder(
       feeAmount: feeAmount,
       kind: tradeKind,
       partiallyFillable: false,
-      receiver: destination,
+      receiver: trueDestination,
       signature: '0x',
-      from: trader,
+      from: trueTrader,
       sellTokenBalance: 'erc20',
       buyTokenBalance: 'erc20',
       signingScheme: 'presign',
@@ -61,6 +137,7 @@ export async function getCowSwapPlaceOrder(
 }
 
 export async function getCowSwapTradeQuote(
+  provider: any,
   environment: EnvironmentsEnum,
   trader: string,
   sellToken: string,
@@ -70,15 +147,73 @@ export async function getCowSwapTradeQuote(
   destination: string = ethers.constants.AddressZero,
 ) {
   try {
+    if (
+      typeof tradeAmount !== 'object' ||
+      '_isBigNumber' in tradeAmount === false ||
+      '_hex' in tradeAmount === false
+    ) {
+      throw 'Invalid tradeAmount';
+    }
+    const tradeKinds = Object.values(CowswapTradeKindEnum).map((k) => k);
+    if (tradeKinds.includes(orderType) === false) {
+      throw false;
+    }
+
+    let trueDestination: string | boolean = destination;
+    let trueDestinationIsEns = trueDestination.indexOf('.eth') > -1;
+    if (trueDestination.indexOf('.eth') > -1) {
+      trueDestination = await resolveAddress(provider, trueDestination);
+    }
+    if (
+      trueDestination === false ||
+      (trueDestinationIsEns === true &&
+        isEnsAddressValid(destination) === false)
+    ) {
+      throw 'Invalid destination address';
+    }
+
+    let trueTrader: string | boolean = trader;
+    let trueTraderIsEns = trueTrader.indexOf('.eth') > -1;
+    if (trueTrader.indexOf('.eth') > -1) {
+      trueTrader = await resolveAddress(provider, trueTrader);
+    }
+    if (
+      trueTrader === false ||
+      (trueTraderIsEns === true && isEnsAddressValid(trader) === false)
+    ) {
+      throw 'Invalid trader address';
+    }
+    let trueSellToken: string | boolean = sellToken;
+    let sellTokenIsEns = trueSellToken.indexOf('.eth') > -1;
+    if (trueSellToken.indexOf('.eth') > -1) {
+      trueSellToken = await resolveAddress(provider, trueSellToken);
+    }
+    if (
+      trueSellToken === false ||
+      (sellTokenIsEns === true && isEnsAddressValid(sellToken) === false)
+    ) {
+      throw 'Invalid sellToken adderss';
+    }
+    let trueBuyToken: string | boolean = buyToken;
+    let buyTokenIsEns = trueBuyToken.indexOf('.eth') > -1;
+    if (trueBuyToken.indexOf('.eth') > -1) {
+      trueBuyToken = await resolveAddress(provider, trueBuyToken);
+    }
+    if (
+      trueBuyToken === false ||
+      (buyTokenIsEns === true && isEnsAddressValid(buyToken) === false)
+    ) {
+      throw 'Invalid buyToken address';
+    }
     const validTimeForOrder = parseInt(
       ((new Date().getTime() + 3600000) / 1000).toString(),
     );
     const coswapAPI = generalConfigurations.cowswapAPI[environment];
     const call = [coswapAPI, CowSwapAPIEndpointsEnum.QUOTE_V1].join('/');
     const quoteParams: any = {
-      sellToken,
-      buyToken,
-      receiver: destination,
+      sellToken: trueSellToken,
+      buyToken: trueBuyToken,
+      receiver: trueDestination,
       validTo: validTimeForOrder,
       appData: ethers.constants.HashZero,
       partiallyFillable: false,
