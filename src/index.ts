@@ -221,6 +221,7 @@ export async function handler(credentials: RelayerParams) {
     for (const s of Object.keys(stablecoinsShortfalls)) {
       const stableCoin = stablecoinsShortfalls[s];
       const cowSwap = await getCowSwapTradeQuote(
+        provider,
         environment,
         generalConfigurations.gnosisSafeAddress[environment],
         generalConfigurations.wethAddress[environment],
@@ -277,6 +278,7 @@ export async function handler(credentials: RelayerParams) {
         const stableCoin = stablecoinsShortfalls[s];
         const cowSwapQuote = swapQuotes[s];
         const cowSwapOrderHash = await getCowSwapPlaceOrder(
+          provider,
           environment,
           generalConfigurations.gnosisSafeAddress[environment],
           generalConfigurations.wethAddress[environment],
@@ -320,6 +322,7 @@ export async function handler(credentials: RelayerParams) {
       for (const s of Object.keys(stablecoinsShortfalls)) {
         const stableCoin = stablecoinsShortfalls[s];
         const cowSwapQuote = await getCowSwapTradeQuote(
+          provider,
           environment,
           generalConfigurations.gnosisSafeAddress[environment],
           generalConfigurations.wethAddress[environment],
@@ -333,6 +336,7 @@ export async function handler(credentials: RelayerParams) {
           return;
         }
         const cowSwapOrderHash = await getCowSwapPlaceOrder(
+          provider,
           environment,
           generalConfigurations.gnosisSafeAddress[environment],
           generalConfigurations.wethAddress[environment],

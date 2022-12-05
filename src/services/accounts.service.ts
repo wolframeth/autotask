@@ -1,33 +1,6 @@
-import { ensNormalize } from '@ethersproject/hash';
 import { Contract, ethers } from 'ethers';
 import { ERC20ABI } from '../models/contracts/erc20.abi';
-
-export function is0xAddressValid(address: string) {
-  try {
-    ethers.utils.getAddress(address);
-    if (!/^(0x)?[0-9a-f]{40}$/i.test(address)) {
-      throw false;
-    } else if (
-      /^(0x)?[0-9a-f]{40}$/.test(address) ||
-      /^(0x)?[0-9A-F]{40}$/.test(address)
-    ) {
-      return true;
-    } else {
-      return true;
-    }
-  } catch (e) {
-    return false;
-  }
-}
-
-export function isEnsAddressValid(ens: string) {
-  try {
-    ensNormalize(ens);
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
+import { is0xAddressValid, isEnsAddressValid } from './misc.service';
 
 export async function resolveAddress(provider: any, address: string) {
   try {
