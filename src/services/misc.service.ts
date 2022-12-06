@@ -3,7 +3,9 @@ import { ensNormalize } from '@ethersproject/hash';
 
 export function is0xAddressValid(address: string) {
   try {
-    ethers.utils.getAddress(address);
+    if (address.length < 42) {
+      throw false;
+    }
     if (!/^(0x)?[0-9a-f]{40}$/i.test(address)) {
       throw false;
     } else if (
