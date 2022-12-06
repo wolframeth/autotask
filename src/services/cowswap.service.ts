@@ -3,17 +3,7 @@ import { generalConfigurations } from '../configurations/general.conf';
 import { CowswapTradeKindEnum } from '../models/cowswap-trade-kind.enum';
 import { EnvironmentsEnum } from '../models/environments.enum';
 import { resolveAddress } from './accounts.service';
-import { isEnsAddressValid } from './misc.service';
-
-function isValidTimestamp(dateTimestamp: number) {
-  var minDate = new Date('1970-01-01 00:00:01').getTime();
-  var maxDate = new Date('3000-01-19 00:00:00').getTime();
-  return dateTimestamp > minDate && dateTimestamp < maxDate;
-}
-
-function isNumeric(n: number) {
-  return !isNaN(parseFloat(n.toString())) && isFinite(n);
-}
+import { isEnsAddressValid, isNumeric, isValidTimestamp } from './misc.service';
 
 export enum CowSwapAPIEndpointsEnum {
   ORDERS_V1 = 'api/v1/orders',

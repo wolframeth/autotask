@@ -8,6 +8,7 @@ export async function simulate(
   callerAddress: string,
   targetAddress: string,
   txData: string,
+  value = 0,
   blockNumber = null,
 ) {
   try {
@@ -28,6 +29,7 @@ export async function simulate(
       from: callerAddress,
       input: txData,
       to: targetAddress,
+      value: value,
       block_number: blockNumber,
       save: true,
     };
@@ -38,7 +40,7 @@ export async function simulate(
     };
     const fetchCall = await axios.post(SIMULATE_API, transaction, opts);
     if (fetchCall.status !== 200 && fetchCall.status !== 201) {
-      throw false;
+      throw 'Bad request';
     }
     if (
       'code' in fetchCall === true &&

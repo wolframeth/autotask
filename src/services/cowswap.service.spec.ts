@@ -27,10 +27,6 @@ describe('Cowswap services tests', () => {
     orderType: CowswapTradeKindEnum.BUY,
     tradeAmount: amountToTrade,
   };
-  const abnormalOrder = {};
-  beforeEach((): void => {
-    jest.setTimeout(60000);
-  });
   test('Create a proper cowswap quote', async () => {
     const quote = await getCowSwapTradeQuote(
       provider,

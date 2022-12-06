@@ -29,3 +29,16 @@ export function isEnsAddressValid(ens: string) {
     return false;
   }
 }
+
+export function isValidTimestamp(dateTimestamp: number) {
+  var minDate = new Date('1970-01-01 00:00:01').getTime();
+  var maxDate = new Date('3000-01-19 00:00:00').getTime();
+  return dateTimestamp > minDate && dateTimestamp < maxDate;
+}
+
+export function isNumeric(n: number | string) {
+  return (
+    !isNaN(parseFloat(typeof n === 'number' ? n.toString() : n)) &&
+    isFinite(typeof n === 'number' ? n : parseFloat(n))
+  );
+}
