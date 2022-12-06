@@ -40,11 +40,17 @@ export async function simulate(
     if (fetchCall.status !== 200 && fetchCall.status !== 201) {
       throw false;
     }
+    if (
+      'code' in fetchCall === true &&
+      (fetchCall as any).code === 'ERR_BAD_REQUEST'
+    ) {
+      throw 'Bad request';
+    }
     const simId = fetchCall.data.simulation.id;
     const simResult = fetchCall.data.simulation.status;
     return { id: simId, result: simResult };
   } catch (e) {
-    console.log('(simulate) An unknown error has occured', e);
+    console.log('(simulate) An unknown error has occured');
     return false;
   }
 }

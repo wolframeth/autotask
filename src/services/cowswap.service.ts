@@ -44,7 +44,6 @@ export async function getCowSwapPlaceOrder(
     ) {
       throw 'Invalid buyAmount or sellAmount';
     }
-    console.log(validTimeOfOrder, isValidTimestamp(validTimeOfOrder * 1000));
     if (isValidTimestamp(validTimeOfOrder * 1000) === false) {
       throw 'Invalid validTimeOfOrder';
     }
