@@ -621,7 +621,10 @@ export async function performBatchedTransaction(
       value,
     );
     if (gasLimit === false) {
-      throw false;
+      throw 'Invalid gas limit';
+    }
+    if (relayer === null || relayer === undefined) {
+      throw 'Invalid relayer';
     }
     const tx = await relayer.sendTransaction({
       to: generalConfigurations.gnosisZodiacRoleModifierAddress[environment],
