@@ -3,7 +3,12 @@ import { generalConfigurations } from '../configurations/general.conf';
 import { CowswapTradeKindEnum } from '../models/cowswap-trade-kind.enum';
 import { EnvironmentsEnum } from '../models/environments.enum';
 import { resolveAddress } from './accounts.service';
-import { isEnsAddressValid, isNumeric, isValidTimestamp } from './misc.service';
+import {
+  is0xAddressValid,
+  isEnsAddressValid,
+  isNumeric,
+  isValidTimestamp,
+} from './misc.service';
 
 export enum CowSwapAPIEndpointsEnum {
   ORDERS_V1 = 'api/v1/orders',
@@ -162,35 +167,38 @@ export async function getCowSwapTradeQuote(
     }
 
     let trueTrader: string | boolean = trader;
-    let trueTraderIsEns = trueTrader.indexOf('.eth') > -1;
+    const trueTraderIsEns = trueTrader.indexOf('.eth') > -1;
     if (trueTrader.indexOf('.eth') > -1) {
       trueTrader = await resolveAddress(provider, trueTrader);
     }
     if (
       trueTrader === false ||
-      (trueTraderIsEns === true && isEnsAddressValid(trader) === false)
+      (trueTraderIsEns === true && isEnsAddressValid(trader) === false) ||
+      (trueTraderIsEns === false && is0xAddressValid(trader) === false)
     ) {
       throw 'Invalid trader address';
     }
     let trueSellToken: string | boolean = sellToken;
-    let sellTokenIsEns = trueSellToken.indexOf('.eth') > -1;
+    const sellTokenIsEns = trueSellToken.indexOf('.eth') > -1;
     if (trueSellToken.indexOf('.eth') > -1) {
       trueSellToken = await resolveAddress(provider, trueSellToken);
     }
     if (
       trueSellToken === false ||
-      (sellTokenIsEns === true && isEnsAddressValid(sellToken) === false)
+      (sellTokenIsEns === true && isEnsAddressValid(sellToken) === false) ||
+      (sellTokenIsEns === false && is0xAddressValid(sellToken) === false)
     ) {
       throw 'Invalid sellToken adderss';
     }
     let trueBuyToken: string | boolean = buyToken;
-    let buyTokenIsEns = trueBuyToken.indexOf('.eth') > -1;
+    const buyTokenIsEns = trueBuyToken.indexOf('.eth') > -1;
     if (trueBuyToken.indexOf('.eth') > -1) {
       trueBuyToken = await resolveAddress(provider, trueBuyToken);
     }
     if (
       trueBuyToken === false ||
-      (buyTokenIsEns === true && isEnsAddressValid(buyToken) === false)
+      (buyTokenIsEns === true && isEnsAddressValid(buyToken) === false) ||
+      (buyTokenIsEns === false && is0xAddressValid(buyToken) === false)
     ) {
       throw 'Invalid buyToken address';
     }

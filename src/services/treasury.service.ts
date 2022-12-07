@@ -7,10 +7,17 @@ import { ERC20ABI } from '../models/contracts/erc20.abi';
 import { GPV2_ABI } from '../models/contracts/gpv2.abi';
 import { MULTISEND_ABI } from '../models/contracts/multisend.abi';
 import { ROLES_MODFIED_ABI } from '../models/contracts/roles-modifier.abi';
+import { CowswapTradeKindEnum } from '../models/cowswap-trade-kind.enum';
 import { EnvironmentsEnum } from '../models/environments.enum';
 import { GnosisOperationEnum } from '../models/gnosis-operation.enum';
 import { StableCoinModel } from '../models/stablecoin.model';
-import { getERC20Balance } from './accounts.service';
+import { getERC20Balance, resolveAddress } from './accounts.service';
+import {
+  is0xAddressValid,
+  isEnsAddressValid,
+  isNumeric,
+  isValidTimestamp,
+} from './misc.service';
 
 export async function getEthUsdRate(
   provider: any,
@@ -229,6 +236,13 @@ export function createTxDepositETHtoWETHContract(
   amountToDeposit: BigNumber,
 ) {
   try {
+    if (
+      typeof amountToDeposit !== 'object' ||
+      '_isBigNumber' in amountToDeposit === false ||
+      '_hex' in amountToDeposit === false
+    ) {
+      throw 'Invalid amountToDeposit';
+    }
     const weth = new Contract(
       generalConfigurations.wethAddress[environment],
       ERC20ABI,
@@ -268,9 +282,30 @@ export function createTxApproveERC20Transfer(
   erc20Address: string,
   ABI: any[],
   approveTo: string,
-  amountToApprove: string,
+  amountToApprove: BigNumber,
 ) {
   try {
+    if (
+      typeof amountToApprove !== 'object' ||
+      '_isBigNumber' in amountToApprove === false ||
+      '_hex' in amountToApprove === false
+    ) {
+      throw 'Invalid amountToApprove';
+    }
+    const isEnsAddres = erc20Address.indexOf('.eth') > -1;
+    if (isEnsAddres === false && is0xAddressValid(erc20Address) === false) {
+      throw 'Invalid ERC20 Address';
+    }
+    if (isEnsAddres === true && isEnsAddressValid(erc20Address) === false) {
+      throw 'Invalid ERC20 Address';
+    }
+    const isEnsToAddres = approveTo.indexOf('.eth') > -1;
+    if (isEnsToAddres === false && is0xAddressValid(approveTo) === false) {
+      throw 'Invalid ERC20 Address';
+    }
+    if (isEnsToAddres === true && isEnsAddressValid(approveTo) === false) {
+      throw 'Invalid ERC20 Address';
+    }
     const erc20 = new Contract(erc20Address, ABI, provider);
     const approveCall = erc20.interface.encodeFunctionData('approve', [
       approveTo,
@@ -313,6 +348,27 @@ export function createTxTransfeERC20(
   amount: BigNumber,
 ) {
   try {
+    if (
+      typeof amount !== 'object' ||
+      '_isBigNumber' in amount === false ||
+      '_hex' in amount === false
+    ) {
+      throw 'Invalid amountToApprove';
+    }
+    const isEnsAddres = erc20Address.indexOf('.eth') > -1;
+    if (isEnsAddres === false && is0xAddressValid(erc20Address) === false) {
+      throw 'Invalid ERC20 Address';
+    }
+    if (isEnsAddres === true && isEnsAddressValid(erc20Address) === false) {
+      throw 'Invalid ERC20 Address';
+    }
+    const isEnsToAddres = transferTo.indexOf('.eth') > -1;
+    if (isEnsToAddres === false && is0xAddressValid(transferTo) === false) {
+      throw 'Invalid ERC20 Address';
+    }
+    if (isEnsToAddres === true && isEnsAddressValid(transferTo) === false) {
+      throw 'Invalid ERC20 Address';
+    }
     const erc20 = new Contract(erc20Address, ABI, provider);
     const transferWethCall = erc20.interface.encodeFunctionData('transfer', [
       transferTo,
@@ -349,6 +405,11 @@ export function createTxBatch(
   rawTransactions: string[],
 ) {
   try {
+    for (const t of rawTransactions) {
+      if (ethers.utils.isBytesLike(t) === false) {
+        throw 'Corrupt tx data';
+      }
+    }
     const transactions = rawTransactions.map((t) => t.substring(2)).join('');
     const zodiacRolesModifierMultisend = new Contract(
       generalConfigurations.gnosisZodiacRoleModifierMultisendAddress[
@@ -386,54 +447,6 @@ export function createTxBatch(
   }
 }
 
-export function createTxApproveCowswapOrder(
-  gpv2address: string,
-  provider: any,
-  sellToken: string,
-  buyToken: string,
-  sellAmount: string,
-  buyAmount: string,
-  validTo: number,
-  feeAmount: string,
-  kind: string,
-  partiallyFillable: boolean,
-  sellTokenBalance: string,
-  buyTokenBalance: string,
-) {
-  try {
-    const gpv2 = new Contract(gpv2address, GPV2_ABI, provider);
-    const gpv2Call = gpv2.interface.encodeFunctionData('approveOrder', [
-      sellToken,
-      buyToken,
-      sellAmount,
-      buyAmount,
-      validTo,
-      feeAmount,
-      kind,
-      partiallyFillable,
-      sellTokenBalance,
-      buyTokenBalance,
-    ]);
-    const encodeGpv2Call = ethers.utils.solidityPack(
-      ['uint8', 'address', 'uint256', 'uint256', 'bytes'],
-      [
-        GnosisOperationEnum.DELEGATE_CALL,
-        gpv2address,
-        0,
-        ethers.utils.hexDataLength(gpv2Call),
-        gpv2Call,
-      ],
-    );
-    return encodeGpv2Call;
-  } catch (e) {
-    console.log(
-      '(createTxApproveCowswapOrder) An unknown error has occured',
-      e,
-    );
-    return false;
-  }
-}
-
 export function createTxWithdrawETHFromEnsController(
   ensControllerAddress: string,
   provider: any,
@@ -459,6 +472,129 @@ export function createTxWithdrawETHFromEnsController(
   } catch (e) {
     console.log(
       '(createTxWithdrawETHFromMultisig) An unknown error has occured',
+      e,
+    );
+    return false;
+  }
+}
+
+export async function getGasLimitEstimation(
+  provider: any,
+  to: string,
+  from: string,
+  data: string,
+  value: string = '0x0',
+) {
+  try {
+    const estimation = await provider.estimateGas({
+      to,
+      from,
+      data,
+      value,
+    });
+    if (estimation === null) {
+      throw false;
+    }
+    return estimation;
+  } catch (e) {
+    console.log('(getGasLimitEstimation) An unknown error has occured', e);
+    return false;
+  }
+}
+
+export async function createTxApproveCowswapOrder(
+  gpv2address: string,
+  provider: any,
+  sellToken: string,
+  buyToken: string,
+  sellAmount: string,
+  buyAmount: string,
+  validTo: number,
+  feeAmount: string,
+  kind: string,
+  partiallyFillable: boolean,
+  sellTokenBalance: string,
+  buyTokenBalance: string,
+) {
+  try {
+    if (
+      isNumeric(parseInt(buyAmount)) === false ||
+      isNumeric(parseInt(sellAmount)) === false ||
+      buyAmount === '0' ||
+      parseInt(buyAmount) < 0 ||
+      sellAmount === '0' ||
+      parseInt(sellAmount) < 0
+    ) {
+      throw 'Invalid buyAmount or sellAmount';
+    }
+    if (isValidTimestamp(validTo * 1000) === false) {
+      throw 'Invalid validTimeOfOrder';
+    }
+    const tradeKinds = Object.values(CowswapTradeKindEnum).map((k) =>
+      ethers.utils.formatBytes32String(k),
+    );
+    if (tradeKinds.includes(kind) === false) {
+      throw 'Invalid kind';
+    }
+    let trueSellToken: string | boolean = sellToken;
+    const sellTokenIsEns = trueSellToken.indexOf('.eth') > -1;
+    if (trueSellToken.indexOf('.eth') > -1) {
+      trueSellToken = await resolveAddress(provider, trueSellToken);
+    }
+    if (
+      trueSellToken === false ||
+      (sellTokenIsEns === true && isEnsAddressValid(sellToken) === false) ||
+      (sellTokenIsEns === false && is0xAddressValid(sellToken) === false)
+    ) {
+      throw 'Invalid sellToken';
+    }
+    let trueBuyToken: string | boolean = buyToken;
+    const buyTokenIsEns = trueBuyToken.indexOf('.eth') > -1;
+    if (trueBuyToken.indexOf('.eth') > -1) {
+      trueBuyToken = await resolveAddress(provider, trueBuyToken);
+    }
+    if (
+      trueBuyToken === false ||
+      (buyTokenIsEns === true && isEnsAddressValid(buyToken) === false) ||
+      (buyTokenIsEns === false && is0xAddressValid(buyToken) === false)
+    ) {
+      throw 'Invalid buyToken';
+    }
+    let trueGpv2Address = gpv2address;
+    const gpv2IsEns = trueGpv2Address.indexOf('.eth') > -1;
+    if (
+      (gpv2IsEns === true && isEnsAddressValid(gpv2address) === false) ||
+      (gpv2IsEns === false && is0xAddressValid(gpv2address) === false)
+    ) {
+      throw 'Invalid gpv2address';
+    }
+    const gpv2 = new Contract(trueGpv2Address as string, GPV2_ABI, provider);
+    const gpv2Call = gpv2.interface.encodeFunctionData('approveOrder', [
+      trueSellToken,
+      trueBuyToken,
+      sellAmount,
+      buyAmount,
+      validTo,
+      feeAmount,
+      kind,
+      partiallyFillable,
+      sellTokenBalance,
+      buyTokenBalance,
+    ]);
+    const encodeGpv2Call = ethers.utils.solidityPack(
+      ['uint8', 'address', 'uint256', 'uint256', 'bytes'],
+      [
+        GnosisOperationEnum.DELEGATE_CALL,
+        trueGpv2Address,
+        0,
+        ethers.utils.hexDataLength(gpv2Call),
+        gpv2Call,
+      ],
+    );
+    return encodeGpv2Call;
+  } catch (e) {
+    console.log(
+      '(createTxApproveCowswapOrder) An unknown error has occured',
       e,
     );
     return false;
@@ -494,34 +630,9 @@ export async function performBatchedTransaction(
       gasLimit: gasLimit.toString(),
       speed: 'fast',
     });
-    console.log(tx);
     return tx;
   } catch (e) {
     console.log('(performBatchedTransaction) An unknown error has occured', e);
-    return false;
-  }
-}
-
-export async function getGasLimitEstimation(
-  provider: any,
-  to: string,
-  from: string,
-  data: string,
-  value: string = '0x0',
-) {
-  try {
-    const estimation = await provider.estimateGas({
-      to,
-      from,
-      data,
-      value,
-    });
-    if (estimation === null) {
-      throw false;
-    }
-    return estimation;
-  } catch (e) {
-    console.log('(getGasLimitEstimation) An unknown error has occured', e);
     return false;
   }
 }

@@ -258,9 +258,7 @@ export async function handler(credentials: RelayerParams) {
       generalConfigurations.wethAddress[environment],
       ERC20ABI,
       generalConfigurations.cowswapGpv2RelayerAddress[environment],
-      hasMultiSigEnoughBalanceForSwap === true
-        ? swapCost?.toHexString()
-        : multiSigETHBalance.toHexString(),
+      hasMultiSigEnoughBalanceForSwap === true ? swapCost : multiSigETHBalance,
     );
     if (approveGpv2RelayerToTransferWethTx === false) {
       console.log(
@@ -304,7 +302,9 @@ export async function handler(credentials: RelayerParams) {
           cowSwapQuote.quote.buyAmount,
           cowSwapQuote.quote.validTo,
           cowSwapQuote.quote.feeAmount,
-          ethers.utils.formatBytes32String(cowSwapQuote.quote.kind),
+          ethers.utils.formatBytes32String(
+            cowSwapQuote.quote.kind,
+          ) as CowswapTradeKindEnum,
           cowSwapQuote.quote.partiallyFillable,
           ethers.utils.formatBytes32String(cowSwapQuote.quote.sellTokenBalance),
           ethers.utils.formatBytes32String(cowSwapQuote.quote.buyTokenBalance),
@@ -431,7 +431,7 @@ export async function handler(credentials: RelayerParams) {
     generalConfigurations.wethAddress[environment],
     ERC20ABI,
     generalConfigurations.cowswapGpv2RelayerAddress[environment],
-    '0x0',
+    ethers.BigNumber.from(0),
   );
   if (removeApproveGpv2RelayerToTransferWethTx === false) {
     console.log(
@@ -449,7 +449,7 @@ export async function handler(credentials: RelayerParams) {
     generalConfigurations.wethAddress[environment],
     ERC20ABI,
     generalConfigurations.gnosisZodiacRoleModifierAddress[environment],
-    '0x0',
+    ethers.BigNumber.from(0),
   );
   if (removeAproveRoleModifierToTransferWethTx === false) {
     console.log(
