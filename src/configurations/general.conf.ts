@@ -132,7 +132,7 @@ export const generalConfigurations = {
     },
     [EnvironmentsEnum.GOERLI]: {
       USDC: {
-        address: '0xd87ba7a50b2e7e660f678a895e4b72e7cb4ccd9c',
+        address: '0x99c417088aD4a572ba76b545bB29bc3ca840C2Af',
         decimals: 'mwei',
       },
     },
