@@ -52,7 +52,6 @@ describe('Cowswap services tests', () => {
     );
     expect(quote).toEqual(false);
   });
-
   test('Create a cowswap order', async () => {
     const quote = await getCowSwapTradeQuote(
       provider,
@@ -95,7 +94,7 @@ describe('Cowswap services tests', () => {
     expect(isResultProper).toEqual(true);
   });
 
-  test('Create an improper cowswap order', async () => {
+  test('Create an improper cowswap order (invalid trader)', async () => {
     const quote = await getCowSwapTradeQuote(
       provider,
       properQuote.environment,
@@ -105,7 +104,7 @@ describe('Cowswap services tests', () => {
       properQuote.orderType,
       properQuote.tradeAmount,
     );
-    const properOrder = {
+    const newOrder = {
       environment: env,
       trader: invalidTrader,
       sellToken: sellToken,
@@ -120,15 +119,15 @@ describe('Cowswap services tests', () => {
     const order = await getCowSwapPlaceOrder(
       provider,
       env,
-      properOrder.trader,
-      properOrder.sellToken,
-      properOrder.buyToken,
-      properOrder.sellAmount,
-      properOrder.buyAmount,
-      properOrder.feeAmount,
-      properOrder.validTimeOfOrder,
-      properOrder.destination,
-      properOrder.tradeKind,
+      newOrder.trader,
+      newOrder.sellToken,
+      newOrder.buyToken,
+      newOrder.sellAmount,
+      newOrder.buyAmount,
+      newOrder.feeAmount,
+      newOrder.validTimeOfOrder,
+      newOrder.destination,
+      newOrder.tradeKind,
     );
     expect(order).toEqual(false);
   });
