@@ -38,7 +38,7 @@ export const generalConfigurations = {
    */
   gnosisSafeAddress: {
     [EnvironmentsEnum.MAINNET]: '',
-    [EnvironmentsEnum.GOERLI]: '0x314C36C877349E87F8d02eF1B4475BD398ec552E',
+    [EnvironmentsEnum.GOERLI]: '0x38d957AF5535f717C2b8f5120a0fc5bcF931B8Ba',
   },
 
   /**
@@ -46,7 +46,7 @@ export const generalConfigurations = {
    */
   gnosisZodiacRoleModifierAddress: {
     [EnvironmentsEnum.MAINNET]: '',
-    [EnvironmentsEnum.GOERLI]: '0x6c6FD9edC3C341E1CcaE6B3Dd8813869E41563fe',
+    [EnvironmentsEnum.GOERLI]: '0x3b48298b3cB80bE091D1b8c13280032eA2Cf5c1a',
   },
 
   /**
@@ -86,7 +86,7 @@ export const generalConfigurations = {
    */
   ensController: {
     [EnvironmentsEnum.MAINNET]: '0x283Af0B28c62C092C9727F1Ee09c02CA627EB7F5',
-    [EnvironmentsEnum.GOERLI]: '0x4a16c6Bbee697b66706E7dc0101BfCA1d60cdE76',
+    [EnvironmentsEnum.GOERLI]: '0xeC41d70109B1a7238BB986A26CA5E9aC7684c033',
   },
 
   /**
@@ -99,7 +99,7 @@ export const generalConfigurations = {
       USDC: 1,
     },
     [EnvironmentsEnum.GOERLI]: {
-      USDC: 30000,
+      COW: 30000,
     },
   },
 
@@ -131,9 +131,9 @@ export const generalConfigurations = {
       },
     },
     [EnvironmentsEnum.GOERLI]: {
-      USDC: {
-        address: '0xd87ba7a50b2e7e660f678a895e4b72e7cb4ccd9c',
-        decimals: 'mwei',
+      COW: {
+        address: '0x91056D4A53E1faa1A84306D4deAEc71085394bC8',
+        decimals: 'ether',
       },
     },
   },
