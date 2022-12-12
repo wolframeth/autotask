@@ -21,7 +21,7 @@ import {
 } from './services/treasury.service';
 import { BigNumber, ethers } from 'ethers';
 import { ERC20ABI } from './models/contracts/erc20.abi';
-import { getETHBalance } from './services/accounts.service';
+import { getETHBalance, resolveAddress } from './services/accounts.service';
 import {
   getCowSwapPlaceOrder,
   getCowSwapTradeQuote,
@@ -32,19 +32,20 @@ import { EnvInfo } from './models/dot-env.type';
 import { simulate } from './services/tenderly.service';
 import { GeneralConfigurationsModel } from './models/general-configuration.model';
 import { StableCoinModel } from './models/stablecoin.model';
+import { isEnsAddressValid } from './services/misc.service';
 
-export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins(
+export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoinsAndDistributeRemaining(
   configuration: GeneralConfigurationsModel,
   environment: EnvironmentsEnum,
   provider: any,
   multiSigETHBalance: BigNumber,
   stablecoinsShortfalls: { [token: string]: StableCoinModel },
-  ensWallet: string,
+  ensWalletAddress: string,
 ) {
   try {
     if (provider === null || provider === undefined) {
       console.log(
-        'Invalid provider (createTxDepositEthToWethAndExchangeInCowSwapForStableCoins)',
+        'Invalid provider (createTxDepositEthToWethAndExchangeInCowSwapForStableCoinsAndDistributeRemaining)',
       );
       throw false;
     }
@@ -56,6 +57,17 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
     if (multiSigETHBalance.lte(0) === true) {
       console.log('Multisig has no ETH to swap for stablecoins.');
       throw false;
+    }
+    let ensWallet: string | boolean = ensWalletAddress;
+    let ensWalletIsEns = ensWallet.indexOf('.eth') > -1;
+    if (ensWallet.indexOf('.eth') > -1) {
+      ensWallet = await resolveAddress(provider, ensWallet);
+    }
+    if (
+      ensWallet === false ||
+      (ensWalletIsEns === true && isEnsAddressValid(ensWalletAddress) === false)
+    ) {
+      throw 'Invalid ensWallet address';
     }
     const convertETHToWethTx = createTxDepositETHtoWETHContract(
       environment,
@@ -93,7 +105,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
           stableCoin.address,
           CowswapTradeKindEnum.BUY,
           stableCoin.amountDeficit as BigNumber,
-          ensWallet,
+          ensWallet as string,
         );
         if (cowSwap === false) {
           console.log('Failed to retrieve swap rates. Aborting operation.');
@@ -159,7 +171,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             cowSwapQuote.quote.buyAmount,
             cowSwapQuote.quote.feeAmount,
             cowSwapQuote.quote.validTo,
-            ensWallet,
+            ensWallet as string,
             CowswapTradeKindEnum.SELL,
           );
           if (cowSwapOrderHash === false) {
@@ -209,7 +221,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             stableCoin.address,
             CowswapTradeKindEnum.BUY,
             ethToBeDistributedForEachStablecoin as BigNumber,
-            ensWallet,
+            ensWallet as string,
           );
           if (cowSwapQuote === false) {
             console.log('Failed to retrieve swap rates. Aborting operation.');
@@ -225,7 +237,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             cowSwapQuote.quote.buyAmount,
             cowSwapQuote.quote.feeAmount,
             cowSwapQuote.quote.validTo,
-            ensWallet,
+            ensWallet as string,
             CowswapTradeKindEnum.SELL,
           );
           if (cowSwapOrderHash === false) {
@@ -562,7 +574,7 @@ export async function app(
     }
     if ((multiSigETHBalance as BigNumber).gt(0) === true) {
       const depositAndExchangeTx =
-        await createTxDepositEthToWethAndExchangeInCowSwapForStableCoins(
+        await createTxDepositEthToWethAndExchangeInCowSwapForStableCoinsAndDistributeRemaining(
           configuration,
           environment,
           provider,

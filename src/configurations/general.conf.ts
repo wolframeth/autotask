@@ -86,7 +86,7 @@ export const generalConfigurations = {
    */
   ensController: {
     [EnvironmentsEnum.MAINNET]: '0x283Af0B28c62C092C9727F1Ee09c02CA627EB7F5',
-    [EnvironmentsEnum.GOERLI]: '0xeC41d70109B1a7238BB986A26CA5E9aC7684c033',
+    [EnvironmentsEnum.GOERLI]: '0x73dF0611886067015E83f0eB97bC6F1cb0ce4499',
   },
 
   /**
