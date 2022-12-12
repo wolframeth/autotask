@@ -31,384 +31,245 @@ import { CowSwapSuccessResponseModel } from './models/cowswap-success-response.m
 import { EnvInfo } from './models/dot-env.type';
 import { simulate } from './services/tenderly.service';
 import { GeneralConfigurationsModel } from './models/general-configuration.model';
+import { StableCoinModel } from './models/stablecoin.model';
 
-export async function app(
-  credentials: RelayerParams,
+export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins(
   configuration: GeneralConfigurationsModel,
-  defenderEnvironment = true,
+  environment: EnvironmentsEnum,
+  provider: any,
+  multiSigETHBalance: BigNumber,
+  stablecoinsShortfalls: { [token: string]: StableCoinModel },
+  ensWallet: string,
 ) {
   try {
-    if (
-      credentials === null ||
-      ((defenderEnvironment === false || require.main === module) &&
-        ('apiKey' in credentials === false ||
-          'apiKey' in credentials === null ||
-          'apiSecret' in credentials === false ||
-          'apiSecret' in credentials === null)) ||
-      ((defenderEnvironment === true || require.main !== module) &&
-        ('credentials' in credentials === false ||
-          'relayerARN' in credentials === false))
-    ) {
-      console.log('Relayer credentials are incorrect. Aborting operation.');
-      throw 'false';
-    }
-    const provider = new DefenderRelayProvider(credentials);
-    const relayer = new Relayer(credentials);
-    const relayerInfo = (await relayer.getRelayer()) as RelayerModel;
-    const environment = relayerInfo.network as EnvironmentsEnum;
-    if (configuration.validEnvironments.includes(environment) === false) {
-      console.log('Network is not supported. Aborting operation.');
-      throw false;
-    }
-    const ensWallet = configuration.ensWallet[environment];
-    const ensMultisigWallet = configuration.gnosisSafeAddress[environment];
-    const stablecoins = stablecoinConfigurationToModel(environment);
-    if (stablecoins === false) {
-      console.log('Stablecoins list is corrupted. Aborting operation.');
-      throw false;
-    }
-
-    /**
-     * Get all the stablecoin balances
-     */
-    const stablecoinHoldings = await getAllUSDBalance(
-      provider,
-      ensWallet,
-      stablecoins,
-    );
-    if (stablecoinHoldings === false) {
-      console.log('Stablecoin balance query failed. Aborting operation.');
-      throw false;
-    }
-
-    /**
-     * Check the stablecoin balance of the multisig and pick the non-zero ones
-     */
-    const stablecoinMultisigHoldings = await getAllUSDBalance(
-      provider,
-      ensMultisigWallet,
-      stablecoins,
-    );
-    if (stablecoinMultisigHoldings === false) {
+    if (provider === null || provider === undefined) {
       console.log(
-        'Stablecoin multisig balance query failed. Aborting operation.',
+        'Invalid provider (createTxDepositEthToWethAndExchangeInCowSwapForStableCoins)',
       );
       throw false;
     }
-
-    const totalStableCoinHoldings = stablecoinHoldings;
-    for (const s of Object.keys(stablecoinMultisigHoldings)) {
-      const stablecoin = stablecoinMultisigHoldings[s];
-      totalStableCoinHoldings[s].balance = totalStableCoinHoldings[
-        s
-      ].balance?.add(stablecoin?.balance as BigNumber);
-    }
-
-    /**
-     * Check each stablecoin reserves of treasury and filter those that ammount above or equal to desired amount
-     * add into the calculation the stablecoin in the multisig
-     */
-    const stablecoinsShortfalls = await filterStablcoinsBelowThreshold(
-      totalStableCoinHoldings,
+    const batchedTransactions = [];
+    console.log(
+      'Creating tx for ETH to WETH multisig balance of:',
+      ethers.utils.formatEther(multiSigETHBalance),
     );
-    if (stablecoinsShortfalls === false) {
+    if (multiSigETHBalance.lte(0) === true) {
+      console.log('Multisig has no ETH to swap for stablecoins.');
+      throw false;
+    }
+    const convertETHToWethTx = createTxDepositETHtoWETHContract(
+      environment,
+      provider,
+      multiSigETHBalance,
+    );
+    if (convertETHToWethTx === false) {
       console.log(
-        'An error has occured while determine stablecoin balance differences. Aborting operation.',
+        'Failed to create tx for ETH to WETH multisig balance conversion. Aborting operation.',
       );
       throw false;
     }
+    batchedTransactions.push(convertETHToWethTx);
 
     /**
-     * List all stablecoin shortfalls
+     * Get quote from Coswap to estimate WETH required to exchange for stablecoin shortfall
+     * -
+     * Note: Chainlink Oracles cannot be relied upon for testing since the ETH/USD rates on testnet orcales are
+     * based on the ETH/USD rates on mainnet but there can be multiple stablecoins on testnet and
+     * their swap rates are vastly different from mainnet quotes. Therefore, we ask Cowswap to give
+     * us the market rates in the current network for X/Y instead to determine whether we have enought ETH for swaps
+     * and determine whether to create a BUY or SELL (all ETH) order.
      */
+    let totalAmountWethSpent;
     if (Object.keys(stablecoinsShortfalls).length > 0) {
+      let swapCost;
+      let swapQuotes: { [token: string]: CowSwapSuccessResponseModel } = {};
       for (const s of Object.keys(stablecoinsShortfalls)) {
-        const stablecoin = stablecoinsShortfalls[s];
-        const deficitAmount = ethers.utils.formatUnits(
-          stablecoin.amountDeficit as BigNumber,
-          stablecoin.decimals,
-        );
-        console.log(
-          'ENS Wallet has a deficit of',
-          deficitAmount.toLocaleLowerCase('en-gb'),
-          s,
-        );
-      }
-    }
-
-    /**
-     * Initialise the batched transactions storage
-     */
-    const batchedTransaction = [];
-
-    /**
-     * 1.) Compose a send tx of the stablecoins from multisig (if there is any)
-     */
-    const availableStablecoinsInMultisig = filterNonZeroStablecoinBalance(
-      stablecoinMultisigHoldings,
-    );
-    if (availableStablecoinsInMultisig === false) {
-      console.log(
-        'Stablecoin multisig balance query failed. Aborting operation.',
-      );
-      throw false;
-    }
-    if (Object.keys(availableStablecoinsInMultisig).length > 0) {
-      for (const s of Object.keys(availableStablecoinsInMultisig)) {
-        const stablecoin = availableStablecoinsInMultisig[s];
-        const tx = createTxTransfeERC20(
+        const stableCoin = stablecoinsShortfalls[s];
+        const cowSwap = await getCowSwapTradeQuote(
           provider,
-          stablecoin.address,
-          ERC20ABI,
+          environment,
+          configuration.gnosisSafeAddress[environment],
+          configuration.wethAddress[environment],
+          stableCoin.address,
+          CowswapTradeKindEnum.BUY,
+          stableCoin.amountDeficit as BigNumber,
           ensWallet,
-          stablecoin.balance as BigNumber,
         );
-        if (tx === false) {
-          console.log(
-            'Failed to create tx for stablecoin transfer. Aborting operation.',
-          );
+        if (cowSwap === false) {
+          console.log('Failed to retrieve swap rates. Aborting operation.');
           throw false;
         }
-        batchedTransaction.push(tx);
+        if (swapCost === undefined) {
+          swapQuotes[s] = cowSwap as CowSwapSuccessResponseModel;
+          swapCost = ethers.BigNumber.from(cowSwap.quote.sellAmount);
+        } else {
+          swapQuotes[s] = cowSwap as CowSwapSuccessResponseModel;
+          swapCost.add(ethers.BigNumber.from(cowSwap.quote.sellAmount));
+        }
       }
-    }
-
-    /**
-     * 2.) Compose a withdraw tx on controller.ens.eth from the multisig
-     */
-    const performWithdrawFromEnsController =
-      createTxWithdrawETHFromEnsController(
-        configuration.ensController[environment],
-        provider,
-      );
-    if (performWithdrawFromEnsController === false) {
-      console.log(
-        'Failed to create ENS Controller withdraw TX. Aborting operation.',
-      );
-      throw false;
-    }
-    batchedTransaction.push(performWithdrawFromEnsController);
-
-    /**
-     * 3.) Compose a deposit tx for all ETH to WETH contract to convert ETH to WETH
-     */
-    const multiSigETHBalance = await getETHBalance(provider, ensMultisigWallet);
-    if (multiSigETHBalance === false) {
-      console.log(
-        'Failed to get multisig ETH balance for WETH deposit. Aborting operation.',
-      );
-      throw false;
-    }
-    if ((multiSigETHBalance as BigNumber).gt(0) === true) {
-      console.log(
-        'Creating tx for ETH to WETH multisig balance of:',
-        ethers.utils.formatEther(multiSigETHBalance),
-      );
-      const convertETHToWethTx = createTxDepositETHtoWETHContract(
-        environment,
-        provider,
+      const hasMultiSigEnoughBalanceForSwap = (swapCost as BigNumber).lte(
         multiSigETHBalance,
       );
-      if (convertETHToWethTx === false) {
+
+      if (
+        swapCost === undefined ||
+        swapCost.lte(ethers.BigNumber.from(0)) === true
+      ) {
+        console.log('Retrieving swap cost failed. Aborting operation');
+        throw false;
+      }
+      if (hasMultiSigEnoughBalanceForSwap === true) {
+        totalAmountWethSpent = swapCost as BigNumber;
+      }
+
+      /**
+       * Compose an approve Coswap GPv2Relayer to spend multisig's WETH
+       */
+      const approveGpv2RelayerToTransferWethTx = createTxApproveERC20Transfer(
+        provider,
+        configuration.wethAddress[environment],
+        ERC20ABI,
+        configuration.cowswapGpv2RelayerAddress[environment],
+        hasMultiSigEnoughBalanceForSwap === true
+          ? swapCost
+          : multiSigETHBalance,
+      );
+      if (approveGpv2RelayerToTransferWethTx === false) {
         console.log(
-          'Failed to create tx for ETH to WETH multisig balance conversion. Aborting operation.',
+          'Failed to create approval TX for Gpv2 Relayer WETH management (SELL). Aborting operation.',
         );
         throw false;
       }
-      batchedTransaction.push(convertETHToWethTx);
+      batchedTransactions.push(approveGpv2RelayerToTransferWethTx);
 
       /**
-       * 4.) Get quote from Coswap to estimate WETH required to exchange for stablecoin shortfall
-       * -
-       * Note: Chainlink Oracles cannot be relied upon for testing since the ETH/USD rates on testnet orcales are
-       * based on the ETH/USD rates on mainnet but there can be multiple stablecoins on testnet and
-       * their swap rates are vastly different from mainnet quotes. Therefore, we ask Cowswap to give
-       * us the market rates in the current network for X/Y instead to determine whether we have enought ETH for swaps
-       * and determine whether to create a BUY or SELL (all ETH) order.
+       * Compose a BUY/SELL order on Cowswap
        */
-      let totalAmountWethSpent;
-      if (Object.keys(stablecoinsShortfalls).length > 0) {
-        let swapCost;
-        let swapQuotes: { [token: string]: CowSwapSuccessResponseModel } = {};
+      if (hasMultiSigEnoughBalanceForSwap === true) {
         for (const s of Object.keys(stablecoinsShortfalls)) {
           const stableCoin = stablecoinsShortfalls[s];
-          const cowSwap = await getCowSwapTradeQuote(
+          const cowSwapQuote = swapQuotes[s];
+          const cowSwapOrderHash = await getCowSwapPlaceOrder(
+            provider,
+            environment,
+            configuration.gnosisSafeAddress[environment],
+            configuration.wethAddress[environment],
+            stableCoin.address,
+            cowSwapQuote.quote.sellAmount,
+            cowSwapQuote.quote.buyAmount,
+            cowSwapQuote.quote.feeAmount,
+            cowSwapQuote.quote.validTo,
+            ensWallet,
+            CowswapTradeKindEnum.SELL,
+          );
+          if (cowSwapOrderHash === false) {
+            console.log('Failed to create swap. Aborting operation.');
+            throw false;
+          }
+          console.log('Cowswap order created (BUY):', cowSwapOrderHash);
+          const approveOrder = await createTxApproveCowswapOrder(
+            configuration.cowswapGpv2ContractsAddress[environment],
+            provider,
+            cowSwapQuote.quote.sellToken,
+            cowSwapQuote.quote.buyToken,
+            cowSwapQuote.quote.sellAmount,
+            cowSwapQuote.quote.buyAmount,
+            cowSwapQuote.quote.validTo,
+            cowSwapQuote.quote.feeAmount,
+            ethers.utils.formatBytes32String(
+              cowSwapQuote.quote.kind,
+            ) as CowswapTradeKindEnum,
+            cowSwapQuote.quote.partiallyFillable,
+            ethers.utils.formatBytes32String(
+              cowSwapQuote.quote.sellTokenBalance,
+            ),
+            ethers.utils.formatBytes32String(
+              cowSwapQuote.quote.buyTokenBalance,
+            ),
+          );
+          if (approveOrder === false) {
+            console.log(
+              'Failed to create swap approval tx. Aborting operation.',
+            );
+            throw false;
+          }
+          batchedTransactions.push(approveOrder);
+        }
+      } else {
+        const ethToBeDistributedForEachStablecoin = multiSigETHBalance.div(
+          Object.keys(stablecoinsShortfalls).length,
+        );
+        for (const s of Object.keys(stablecoinsShortfalls)) {
+          const stableCoin = stablecoinsShortfalls[s];
+          const cowSwapQuote = await getCowSwapTradeQuote(
             provider,
             environment,
             configuration.gnosisSafeAddress[environment],
             configuration.wethAddress[environment],
             stableCoin.address,
             CowswapTradeKindEnum.BUY,
-            stableCoin.amountDeficit as BigNumber,
+            ethToBeDistributedForEachStablecoin as BigNumber,
             ensWallet,
           );
-          if (cowSwap === false) {
+          if (cowSwapQuote === false) {
             console.log('Failed to retrieve swap rates. Aborting operation.');
             throw false;
           }
-          if (swapCost === undefined) {
-            swapQuotes[s] = cowSwap as CowSwapSuccessResponseModel;
-            swapCost = ethers.BigNumber.from(cowSwap.quote.sellAmount);
-          } else {
-            swapQuotes[s] = cowSwap as CowSwapSuccessResponseModel;
-            swapCost.add(ethers.BigNumber.from(cowSwap.quote.sellAmount));
-          }
-        }
-        const hasMultiSigEnoughBalanceForSwap = (swapCost as BigNumber).lte(
-          multiSigETHBalance,
-        );
-
-        if (hasMultiSigEnoughBalanceForSwap) {
-          totalAmountWethSpent = swapCost as BigNumber;
-        }
-
-        /**
-         * 5.) Compose an approve Coswap GPv2Relayer to spend multisig's WETH
-         */
-        const approveGpv2RelayerToTransferWethTx = createTxApproveERC20Transfer(
-          provider,
-          configuration.wethAddress[environment],
-          ERC20ABI,
-          configuration.cowswapGpv2RelayerAddress[environment],
-          hasMultiSigEnoughBalanceForSwap === true
-            ? swapCost
-            : multiSigETHBalance,
-        );
-        if (approveGpv2RelayerToTransferWethTx === false) {
-          console.log(
-            'Failed to create approval TX for Gpv2 Relayer WETH management (SELL). Aborting operation.',
+          const cowSwapOrderHash = await getCowSwapPlaceOrder(
+            provider,
+            environment,
+            configuration.gnosisSafeAddress[environment],
+            configuration.wethAddress[environment],
+            stableCoin.address,
+            cowSwapQuote.quote.sellAmount,
+            cowSwapQuote.quote.buyAmount,
+            cowSwapQuote.quote.feeAmount,
+            cowSwapQuote.quote.validTo,
+            ensWallet,
+            CowswapTradeKindEnum.SELL,
           );
-          throw false;
-        }
-        batchedTransaction.push(approveGpv2RelayerToTransferWethTx);
-
-        /**
-         * 6.) Compose a BUY/SELL order on Cowswap
-         */
-        if (hasMultiSigEnoughBalanceForSwap === true) {
-          for (const s of Object.keys(stablecoinsShortfalls)) {
-            const stableCoin = stablecoinsShortfalls[s];
-            const cowSwapQuote = swapQuotes[s];
-            const cowSwapOrderHash = await getCowSwapPlaceOrder(
-              provider,
-              environment,
-              configuration.gnosisSafeAddress[environment],
-              configuration.wethAddress[environment],
-              stableCoin.address,
-              cowSwapQuote.quote.sellAmount,
-              cowSwapQuote.quote.buyAmount,
-              cowSwapQuote.quote.feeAmount,
-              cowSwapQuote.quote.validTo,
-              ensWallet,
-              CowswapTradeKindEnum.SELL,
-            );
-            if (cowSwapOrderHash === false) {
-              console.log('Failed to create swap. Aborting operation.');
-              throw false;
-            }
-            console.log('Cowswap order created (BUY):', cowSwapOrderHash);
-            const approveOrder = await createTxApproveCowswapOrder(
-              configuration.cowswapGpv2ContractsAddress[environment],
-              provider,
-              cowSwapQuote.quote.sellToken,
-              cowSwapQuote.quote.buyToken,
-              cowSwapQuote.quote.sellAmount,
-              cowSwapQuote.quote.buyAmount,
-              cowSwapQuote.quote.validTo,
-              cowSwapQuote.quote.feeAmount,
-              ethers.utils.formatBytes32String(
-                cowSwapQuote.quote.kind,
-              ) as CowswapTradeKindEnum,
-              cowSwapQuote.quote.partiallyFillable,
-              ethers.utils.formatBytes32String(
-                cowSwapQuote.quote.sellTokenBalance,
-              ),
-              ethers.utils.formatBytes32String(
-                cowSwapQuote.quote.buyTokenBalance,
-              ),
-            );
-            if (approveOrder === false) {
-              console.log(
-                'Failed to create swap approval tx. Aborting operation.',
-              );
-              throw false;
-            }
-            batchedTransaction.push(approveOrder);
+          if (cowSwapOrderHash === false) {
+            console.log('Failed to create swap. Aborting operation.');
+            throw false;
           }
-        } else {
-          const ethToBeDistributedForEachStablecoin = multiSigETHBalance.div(
-            Object.keys(stablecoinsShortfalls).length,
+          console.log('Cowswap order created (SELL):', cowSwapOrderHash);
+          const approveOrder = await createTxApproveCowswapOrder(
+            configuration.cowswapGpv2ContractsAddress[environment],
+            provider,
+            cowSwapQuote.quote.sellToken,
+            cowSwapQuote.quote.buyToken,
+            cowSwapQuote.quote.sellAmount,
+            cowSwapQuote.quote.buyAmount,
+            cowSwapQuote.quote.validTo,
+            cowSwapQuote.quote.feeAmount,
+            ethers.utils.formatBytes32String(cowSwapQuote.quote.kind),
+            cowSwapQuote.quote.partiallyFillable,
+            ethers.utils.formatBytes32String(
+              cowSwapQuote.quote.sellTokenBalance,
+            ),
+            ethers.utils.formatBytes32String(
+              cowSwapQuote.quote.buyTokenBalance,
+            ),
           );
-          for (const s of Object.keys(stablecoinsShortfalls)) {
-            const stableCoin = stablecoinsShortfalls[s];
-            const cowSwapQuote = await getCowSwapTradeQuote(
-              provider,
-              environment,
-              configuration.gnosisSafeAddress[environment],
-              configuration.wethAddress[environment],
-              stableCoin.address,
-              CowswapTradeKindEnum.BUY,
-              ethToBeDistributedForEachStablecoin as BigNumber,
-              ensWallet,
+          if (approveOrder === false) {
+            console.log(
+              'Failed to create swap approval tx. Aborting operation.',
             );
-            if (cowSwapQuote === false) {
-              console.log('Failed to retrieve swap rates. Aborting operation.');
-              throw false;
-            }
-            const cowSwapOrderHash = await getCowSwapPlaceOrder(
-              provider,
-              environment,
-              configuration.gnosisSafeAddress[environment],
-              configuration.wethAddress[environment],
-              stableCoin.address,
-              cowSwapQuote.quote.sellAmount,
-              cowSwapQuote.quote.buyAmount,
-              cowSwapQuote.quote.feeAmount,
-              cowSwapQuote.quote.validTo,
-              ensWallet,
-              CowswapTradeKindEnum.SELL,
-            );
-            if (cowSwapOrderHash === false) {
-              console.log('Failed to create swap. Aborting operation.');
-              throw false;
-            }
-            console.log('Cowswap order created (SELL):', cowSwapOrderHash);
-            const approveOrder = await createTxApproveCowswapOrder(
-              configuration.cowswapGpv2ContractsAddress[environment],
-              provider,
-              cowSwapQuote.quote.sellToken,
-              cowSwapQuote.quote.buyToken,
-              cowSwapQuote.quote.sellAmount,
-              cowSwapQuote.quote.buyAmount,
-              cowSwapQuote.quote.validTo,
-              cowSwapQuote.quote.feeAmount,
-              ethers.utils.formatBytes32String(cowSwapQuote.quote.kind),
-              cowSwapQuote.quote.partiallyFillable,
-              ethers.utils.formatBytes32String(
-                cowSwapQuote.quote.sellTokenBalance,
-              ),
-              ethers.utils.formatBytes32String(
-                cowSwapQuote.quote.buyTokenBalance,
-              ),
-            );
-            if (approveOrder === false) {
-              console.log(
-                'Failed to create swap approval tx. Aborting operation.',
-              );
-              throw false;
-            }
-            batchedTransaction.push(approveOrder);
+            throw false;
           }
+          batchedTransactions.push(approveOrder);
         }
       }
+    }
 
-      /**
-       * 7.) Compose an approve tx for transerring remaining WETH to Role Modifier addres
-       */
-      const wethRemainingBalance =
-        totalAmountWethSpent === undefined
-          ? multiSigETHBalance
-          : multiSigETHBalance.sub(totalAmountWethSpent);
+    /**
+     * Compose an approve tx for transerring remaining WETH to Role Modifier addres
+     */
+    const wethRemainingBalance =
+      totalAmountWethSpent === undefined
+        ? ethers.BigNumber.from(0)
+        : multiSigETHBalance.sub(totalAmountWethSpent);
+    if (wethRemainingBalance.gt(0) === true) {
       const approveRoleModifierToTransferWethTx = createTxApproveERC20Transfer(
         provider,
         configuration.wethAddress[environment],
@@ -422,10 +283,10 @@ export async function app(
         );
         throw false;
       }
-      batchedTransaction.push(approveRoleModifierToTransferWethTx);
+      batchedTransactions.push(approveRoleModifierToTransferWethTx);
 
       /**
-       * 8.) Compose a send tx of all the remaining WETH to selected wallet address
+       * Compose a send tx of all the remaining WETH to selected wallet address
        */
       const remainingWethReceipients =
         configuration.remainingWethReceipients[environment];
@@ -449,52 +310,25 @@ export async function app(
             );
             throw false;
           }
-          batchedTransaction.push(transferTx);
+          batchedTransactions.push(transferTx);
         }
       }
     }
+    return batchedTransactions;
+  } catch (e) {
+    return false;
+  }
+}
 
-    /**
-     * 9.) Remove Cowswap GPv2Relayer WETH spend approval
-     */
-    const removeApproveGpv2RelayerToTransferWethTx =
-      createTxApproveERC20Transfer(
-        provider,
-        configuration.wethAddress[environment],
-        ERC20ABI,
-        configuration.cowswapGpv2RelayerAddress[environment],
-        ethers.BigNumber.from(0),
-      );
-    if (removeApproveGpv2RelayerToTransferWethTx === false) {
-      console.log(
-        'Failed to create approval TX for Gpv2 Relayer WETH management (SELL). Aborting operation.',
-      );
-      throw false;
-    }
-    batchedTransaction.push(removeApproveGpv2RelayerToTransferWethTx);
-
-    /**
-     * 10.) Remove Role Modifier's WETH spend approval
-     */
-    const removeAproveRoleModifierToTransferWethTx =
-      createTxApproveERC20Transfer(
-        provider,
-        configuration.wethAddress[environment],
-        ERC20ABI,
-        configuration.gnosisZodiacRoleModifierAddress[environment],
-        ethers.BigNumber.from(0),
-      );
-    if (removeAproveRoleModifierToTransferWethTx === false) {
-      console.log(
-        'Failed to create approval TX for Role Modifier WETH transfer. Aborting operation.',
-      );
-      throw false;
-    }
-    batchedTransaction.push(removeAproveRoleModifierToTransferWethTx);
-
-    /**
-     * 11.) Sign the transaction batch and send it to Gnosis/Zodiac contract
-     */
+export async function simulateOrSubmitToChain(
+  environment: EnvironmentsEnum,
+  provider: any,
+  configuration: GeneralConfigurationsModel,
+  batchedTransaction: string[],
+  relayer: Relayer,
+  relayerInfo: RelayerModel,
+) {
+  try {
     const batchedTx = createTxBatch(environment, provider, batchedTransaction);
     if (batchedTx === false) {
       console.log(
@@ -554,6 +388,243 @@ export async function app(
       );
       return true;
     }
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function app(
+  credentials: RelayerParams,
+  configuration: GeneralConfigurationsModel,
+  defenderEnvironment = true,
+) {
+  try {
+    if (
+      credentials === null ||
+      ((defenderEnvironment === false || require.main === module) &&
+        ('apiKey' in credentials === false ||
+          'apiKey' in credentials === null ||
+          'apiSecret' in credentials === false ||
+          'apiSecret' in credentials === null)) ||
+      ((defenderEnvironment === true || require.main !== module) &&
+        ('credentials' in credentials === false ||
+          'relayerARN' in credentials === false))
+    ) {
+      console.log('Relayer credentials are incorrect. Aborting operation.');
+      throw 'false';
+    }
+    const provider = new DefenderRelayProvider(credentials);
+    const relayer = new Relayer(credentials);
+    const relayerInfo = (await relayer.getRelayer()) as RelayerModel;
+    const environment = relayerInfo.network as EnvironmentsEnum;
+    if (configuration.validEnvironments.includes(environment) === false) {
+      console.log('Network is not supported. Aborting operation.');
+      throw false;
+    }
+    const ensWallet = configuration.ensWallet[environment];
+    const ensMultisigWallet = configuration.gnosisSafeAddress[environment];
+    const stablecoins = stablecoinConfigurationToModel(environment);
+    if (stablecoins === false) {
+      console.log('Stablecoins list is corrupted. Aborting operation.');
+      throw false;
+    }
+
+    /**
+     * 1.) Get all the stablecoin balances
+     */
+    const stablecoinHoldings = await getAllUSDBalance(
+      provider,
+      ensWallet,
+      stablecoins,
+    );
+    if (stablecoinHoldings === false) {
+      console.log('Stablecoin balance query failed. Aborting operation.');
+      throw false;
+    }
+
+    /**
+     * 2.) Check the stablecoin balance of the multisig and pick the non-zero ones
+     */
+    const stablecoinMultisigHoldings = await getAllUSDBalance(
+      provider,
+      ensMultisigWallet,
+      stablecoins,
+    );
+    if (stablecoinMultisigHoldings === false) {
+      console.log(
+        'Stablecoin multisig balance query failed. Aborting operation.',
+      );
+      throw false;
+    }
+
+    const totalStableCoinHoldings = stablecoinHoldings;
+    for (const s of Object.keys(stablecoinMultisigHoldings)) {
+      const stablecoin = stablecoinMultisigHoldings[s];
+      totalStableCoinHoldings[s].balance = totalStableCoinHoldings[
+        s
+      ].balance?.add(stablecoin?.balance as BigNumber);
+    }
+
+    /**
+     * 3.) Check each stablecoin reserves of treasury and filter those that ammount above or equal to desired amount
+     * add into the calculation the stablecoin in the multisig
+     */
+    const stablecoinsShortfalls = await filterStablcoinsBelowThreshold(
+      totalStableCoinHoldings,
+    );
+    if (stablecoinsShortfalls === false) {
+      console.log(
+        'An error has occured while determine stablecoin balance differences. Aborting operation.',
+      );
+      throw false;
+    }
+
+    /**
+     * 4.) List all stablecoin shortfalls
+     */
+    if (Object.keys(stablecoinsShortfalls).length > 0) {
+      for (const s of Object.keys(stablecoinsShortfalls)) {
+        const stablecoin = stablecoinsShortfalls[s];
+        const deficitAmount = ethers.utils.formatUnits(
+          stablecoin.amountDeficit as BigNumber,
+          stablecoin.decimals,
+        );
+        console.log(
+          'ENS Wallet has a deficit of',
+          deficitAmount.toLocaleLowerCase('en-gb'),
+          s,
+        );
+      }
+    }
+
+    /**
+     * Initialise the batched transactions storage
+     */
+    let batchedTransaction = [];
+
+    /**
+     * 5.) Compose a send tx of the stablecoins from multisig (if there is any)
+     */
+    const availableStablecoinsInMultisig = filterNonZeroStablecoinBalance(
+      stablecoinMultisigHoldings,
+    );
+    if (availableStablecoinsInMultisig === false) {
+      console.log(
+        'Stablecoin multisig balance query failed. Aborting operation.',
+      );
+      throw false;
+    }
+    if (Object.keys(availableStablecoinsInMultisig).length > 0) {
+      for (const s of Object.keys(availableStablecoinsInMultisig)) {
+        const stablecoin = availableStablecoinsInMultisig[s];
+        const tx = createTxTransfeERC20(
+          provider,
+          stablecoin.address,
+          ERC20ABI,
+          ensWallet,
+          stablecoin.balance as BigNumber,
+        );
+        if (tx === false) {
+          console.log(
+            'Failed to create tx for stablecoin transfer. Aborting operation.',
+          );
+          throw false;
+        }
+        batchedTransaction.push(tx);
+      }
+    }
+
+    /**
+     * 6.) Compose a withdraw tx on controller.ens.eth from the multisig
+     */
+    const performWithdrawFromEnsController =
+      createTxWithdrawETHFromEnsController(
+        configuration.ensController[environment],
+        provider,
+      );
+    if (performWithdrawFromEnsController === false) {
+      console.log(
+        'Failed to create ENS Controller withdraw TX. Aborting operation.',
+      );
+      throw false;
+    }
+    batchedTransaction.push(performWithdrawFromEnsController);
+
+    /**
+     * 7.) Compose a deposit tx for all ETH to WETH contract to convert ETH to WETH
+     */
+    const multiSigETHBalance = await getETHBalance(provider, ensMultisigWallet);
+    if (multiSigETHBalance === false) {
+      console.log(
+        'Failed to get multisig ETH balance for WETH deposit. Aborting operation.',
+      );
+      throw false;
+    }
+    if ((multiSigETHBalance as BigNumber).gt(0) === true) {
+      const depositAndExchangeTx =
+        await createTxDepositEthToWethAndExchangeInCowSwapForStableCoins(
+          configuration,
+          environment,
+          provider,
+          multiSigETHBalance,
+          stablecoinsShortfalls,
+          ensWallet,
+        );
+      if (depositAndExchangeTx !== false) {
+        batchedTransaction = [...batchedTransaction, ...depositAndExchangeTx];
+      }
+    }
+
+    /**
+     * 8.) Remove Cowswap GPv2Relayer WETH spend approval
+     */
+    const removeApproveGpv2RelayerToTransferWethTx =
+      createTxApproveERC20Transfer(
+        provider,
+        configuration.wethAddress[environment],
+        ERC20ABI,
+        configuration.cowswapGpv2RelayerAddress[environment],
+        ethers.BigNumber.from(0),
+      );
+    if (removeApproveGpv2RelayerToTransferWethTx === false) {
+      console.log(
+        'Failed to create approval TX for Gpv2 Relayer WETH management (SELL). Aborting operation.',
+      );
+      throw false;
+    }
+    batchedTransaction.push(removeApproveGpv2RelayerToTransferWethTx);
+
+    /**
+     * 9.) Remove Role Modifier's WETH spend approval
+     */
+    const removeAproveRoleModifierToTransferWethTx =
+      createTxApproveERC20Transfer(
+        provider,
+        configuration.wethAddress[environment],
+        ERC20ABI,
+        configuration.gnosisZodiacRoleModifierAddress[environment],
+        ethers.BigNumber.from(0),
+      );
+    if (removeAproveRoleModifierToTransferWethTx === false) {
+      console.log(
+        'Failed to create approval TX for Role Modifier WETH transfer. Aborting operation.',
+      );
+      throw false;
+    }
+    batchedTransaction.push(removeAproveRoleModifierToTransferWethTx);
+
+    /**
+     * 10.) Commit TX
+     */
+    const tx = await simulateOrSubmitToChain(
+      environment,
+      provider,
+      configuration,
+      batchedTransaction,
+      relayer,
+      relayerInfo,
+    );
+    return tx;
   } catch (e) {
     console.log(
       'An error has occured while running the app. Aborting operation.',
