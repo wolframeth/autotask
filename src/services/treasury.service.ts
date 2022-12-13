@@ -507,6 +507,7 @@ export async function createTxApproveCowswapOrder(
   provider: any,
   sellToken: string,
   buyToken: string,
+  receiver: string,
   sellAmount: string,
   buyAmount: string,
   validTo: number,
@@ -560,6 +561,18 @@ export async function createTxApproveCowswapOrder(
     ) {
       throw 'Invalid buyToken';
     }
+    let trueReceiver: string | boolean = receiver;
+    const receiverIsEns = trueReceiver.indexOf('.eth') > -1;
+    if (trueReceiver.indexOf('.eth') > -1) {
+      trueReceiver = await resolveAddress(provider, trueReceiver);
+    }
+    if (
+      trueReceiver === false ||
+      (buyTokenIsEns === true && isEnsAddressValid(receiver) === false) ||
+      (buyTokenIsEns === false && is0xAddressValid(receiver) === false)
+    ) {
+      throw 'Invalid buyToken';
+    }
     let trueGpv2Address = gpv2address;
     const gpv2IsEns = trueGpv2Address.indexOf('.eth') > -1;
     if (
@@ -572,6 +585,7 @@ export async function createTxApproveCowswapOrder(
     const gpv2Call = gpv2.interface.encodeFunctionData('approveOrder', [
       trueSellToken,
       trueBuyToken,
+      trueReceiver,
       sellAmount,
       buyAmount,
       validTo,

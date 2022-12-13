@@ -30,7 +30,7 @@ export const generalConfigurations = {
    */
   cowswapGpv2ContractsAddress: {
     [EnvironmentsEnum.MAINNET]: '',
-    [EnvironmentsEnum.GOERLI]: '0x3c8499F3ef1e6A9f8cd9Dc5731B3Be74B3321288',
+    [EnvironmentsEnum.GOERLI]: '0x1DAbFd9bFE4d4995822b8Cb640F1202134Ce7E51',
   },
 
   /**
@@ -67,7 +67,7 @@ export const generalConfigurations = {
       '0x0904dac3347ea47d208f3fd67402d039a3b99859': 100,
     },
     [EnvironmentsEnum.GOERLI]: {
-      '0x0904dac3347ea47d208f3fd67402d039a3b99859': 100,
+      '0xed03c484f4e22095ca89bf41c2eb2c4b23a443bd': 100,
     },
   },
 
