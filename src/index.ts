@@ -567,13 +567,18 @@ export async function app(
     /**
      * 7.) Compose a deposit tx for all ETH to WETH contract to convert ETH to WETH
      */
-    const multiSigETHBalance = await getETHBalance(provider, ensMultisigWallet);
+    const controllerBalance = await getETHBalance(
+      provider,
+      configuration.ensController[environment],
+    );
+    let multiSigETHBalance = await getETHBalance(provider, ensMultisigWallet);
     if (multiSigETHBalance === false) {
       console.log(
         'Failed to get multisig ETH balance for WETH deposit. Aborting operation.',
       );
       throw false;
     }
+    multiSigETHBalance = multiSigETHBalance.add(controllerBalance);
     if ((multiSigETHBalance as BigNumber).gt(0) === true) {
       const depositAndExchangeTx =
         await createTxDepositEthToWethAndExchangeInCowSwapForStableCoinsAndDistributeRemaining(
