@@ -79,7 +79,25 @@ TENDERLY_ACCESS_KEY=TENDER_ACCESS_KEY_HERE
 
 #### 10.) Configure the app
 
-WIP
+Please take a look at configurations/general.conf.ts for ready-made examples.
+
+| Configuration                            | Value                                                                                                                                                                                |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| validEnvironments                        | A list of valid networks                                                                                                                                                             |
+| tenderlyAPI                              | Tenderly.co main API endpoint                                                                                                                                                        |
+| cowswapAPI                               | Cow.fi main API endpoints                                                                                                                                                            |
+| cowswapGpv2RelayerAddress                | The contract that performs the exchange of weth/tokens                                                                                                                               |
+| cowswapGpv2ContractsAddress              | The contract that performs pre-signature signing of cowswap exchange orders                                                                                                          |
+| gnosisSafeAddress                        | The ENS gnosis safe address                                                                                                                                                          |
+| gnosisZodiacRoleModifierAddress          | The address of Role modifier contract of ENS gnosis safe addres                                                                                                                      |
+| gnosisZodiacRoleModifierMultisendAddress | The multisend address (which supports DelegateCall) of the ENS gnosis safe address                                                                                                   |
+| remainingWethReceipients                 | The list of recipients of the remaining WETH that are not used on the Cowswap order - if the order is SELL (sell all ETH), there are no remaining WETH                               |
+| ensWallet                                | The ENS wallet (wallet.ensdao.eth)                                                                                                                                                   |
+| ensController                            | The ENS Registrar, the contract that facilitates domain registration and stores the fees                                                                                             |
+| stablecoinsAddresses                     | The list of stablecoins that will be tracked and used for Cowswap exchange                                                                                                           |
+| desiredUsdBalanceInSourceAccount         | The amount of stablecoin balance desired to be kept in the ensWallet - if the ensWallet balance is below the desired amount, and ETH to Stablecoin exchange Cowswap order is created |
+| wethAddress                              | Address of WETH contract                                                                                                                                                             |
+| chainlinkEthUsdOracleAddress             | Address of Chainlink Aggreegator contract to obtain ETH/USD rates                                                                                                                    |
 
 #### 11.) Simulate
 
