@@ -40,9 +40,6 @@ export interface GeneralConfigurationsModel {
       [stablecoin: string]: number;
     };
   };
-  maxEthToExchange: {
-    [environment: string]: number;
-  };
   wethAddress: {
     [environment: string]: string;
   };

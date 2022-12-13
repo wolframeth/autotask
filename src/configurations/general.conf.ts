@@ -67,7 +67,7 @@ export const generalConfigurations = {
       '0x0904dac3347ea47d208f3fd67402d039a3b99859': 100,
     },
     [EnvironmentsEnum.GOERLI]: {
-      '0xed03c484f4e22095ca89bf41c2eb2c4b23a443bd': 100,
+      '0x2fC8771F52377eC1a819cf87c5dDaCc4F8a89F10': 100,
     },
   },
 
@@ -101,20 +101,6 @@ export const generalConfigurations = {
     [EnvironmentsEnum.GOERLI]: {
       COW: 2000,
     },
-  },
-
-  /**
-   * A maximum limit of ETH to exchange in a session.
-   * -
-   * Setting to 0 will exchange unlimited ETH
-   *
-   * NOTE: the setting is in ETH unit, not WEI
-   * -
-   * Valid values: Integers
-   */
-  maxEthToExchange: {
-    [EnvironmentsEnum.MAINNET]: 1,
-    [EnvironmentsEnum.GOERLI]: 1,
   },
 
   /**
