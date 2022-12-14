@@ -595,26 +595,7 @@ export async function app(
     }
 
     /**
-     * 8.) Remove Cowswap GPv2Relayer WETH spend approval
-     */
-    const removeApproveGpv2RelayerToTransferWethTx =
-      createTxApproveERC20Transfer(
-        provider,
-        configuration.wethAddress[environment],
-        ERC20ABI,
-        configuration.cowswapGpv2RelayerAddress[environment],
-        ethers.BigNumber.from(0),
-      );
-    if (removeApproveGpv2RelayerToTransferWethTx === false) {
-      console.log(
-        'Failed to create approval TX for Gpv2 Relayer WETH management (SELL). Aborting operation.',
-      );
-      throw false;
-    }
-    batchedTransaction.push(removeApproveGpv2RelayerToTransferWethTx);
-
-    /**
-     * 9.) Remove Role Modifier's WETH spend approval
+     * 8.) Remove Role Modifier's WETH spend approval
      */
     const removeAproveRoleModifierToTransferWethTx =
       createTxApproveERC20Transfer(
@@ -633,7 +614,7 @@ export async function app(
     batchedTransaction.push(removeAproveRoleModifierToTransferWethTx);
 
     /**
-     * 10.) Commit TX
+     * 9.) Commit TX
      */
     const tx = await simulateOrSubmitToChain(
       environment,
