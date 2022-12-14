@@ -172,7 +172,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             cowSwapQuote.quote.feeAmount,
             cowSwapQuote.quote.validTo,
             ensWallet as string,
-            CowswapTradeKindEnum.SELL,
+            CowswapTradeKindEnum.BUY,
           );
           if (cowSwapOrderHash === false) {
             console.log('Failed to create swap. Aborting operation.');
@@ -220,7 +220,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             configuration.gnosisSafeAddress[environment],
             configuration.wethAddress[environment],
             stableCoin.address,
-            CowswapTradeKindEnum.BUY,
+            CowswapTradeKindEnum.SELL,
             ethToBeDistributedForEachStablecoin as BigNumber,
             ensWallet as string,
           );
