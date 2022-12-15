@@ -27,7 +27,7 @@ import {
   resolveAddress,
 } from './services/accounts.service';
 import {
-  getCowSwapPlaceOrder,
+  cowSwapPlaceOrder,
   getCowSwapTradeQuote,
 } from './services/cowswap.service';
 import { CowswapTradeKindEnum } from './models/cowswap-trade-kind.enum';
@@ -169,7 +169,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
         for (const s of Object.keys(stablecoinsShortfalls)) {
           const stableCoin = stablecoinsShortfalls[s];
           const cowSwapQuote = swapQuotes[s];
-          const cowSwapOrderHash = await getCowSwapPlaceOrder(
+          const cowSwapOrderHash = await cowSwapPlaceOrder(
             provider,
             environment,
             configuration.gnosisSafeAddress[environment],
@@ -236,7 +236,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             console.log('Failed to retrieve swap rates. Aborting operation.');
             throw false;
           }
-          const cowSwapOrderHash = await getCowSwapPlaceOrder(
+          const cowSwapOrderHash = await cowSwapPlaceOrder(
             provider,
             environment,
             configuration.gnosisSafeAddress[environment],

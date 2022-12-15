@@ -1,6 +1,6 @@
 import { EnvironmentsEnum } from '../models/environments.enum';
 import { CowswapTradeKindEnum } from '../models/cowswap-trade-kind.enum';
-import { getCowSwapPlaceOrder, getCowSwapTradeQuote } from './cowswap.service';
+import { cowSwapPlaceOrder, getCowSwapTradeQuote } from './cowswap.service';
 import { ethers } from 'ethers';
 
 describe('Cowswap services tests', () => {
@@ -74,7 +74,7 @@ describe('Cowswap services tests', () => {
       destination: trader,
       tradeKind: quote.quote.kind,
     };
-    const order = await getCowSwapPlaceOrder(
+    const order = await cowSwapPlaceOrder(
       provider,
       env,
       properOrder.trader,
@@ -116,7 +116,7 @@ describe('Cowswap services tests', () => {
       destination: trader,
       tradeKind: quote.quote.kind,
     };
-    const order = await getCowSwapPlaceOrder(
+    const order = await cowSwapPlaceOrder(
       provider,
       env,
       newOrder.trader,

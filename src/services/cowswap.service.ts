@@ -15,7 +15,7 @@ export enum CowSwapAPIEndpointsEnum {
   QUOTE_V1 = 'api/v1/quote',
 }
 
-export async function getCowSwapPlaceOrder(
+export async function cowSwapPlaceOrder(
   provider: any,
   environment: EnvironmentsEnum,
   trader: string,
@@ -125,7 +125,7 @@ export async function getCowSwapPlaceOrder(
     const parsedData = await fetchCall.text();
     return parsedData.replace(/"/g, '');
   } catch (e) {
-    console.log('(getCowSwapPlaceOrder) An unknown error has occured', e);
+    console.log('(cowSwapPlaceOrder) An unknown error has occured', e);
     return false;
   }
 }
