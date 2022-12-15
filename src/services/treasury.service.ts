@@ -642,7 +642,7 @@ export async function performBatchedTransaction(
       to: generalConfigurations.gnosisZodiacRoleModifierAddress[environment],
       value: 0,
       data: batchedTransactions as string,
-      gasLimit: '2000000',
+      gasLimit: gasLimit,
       speed: 'fast',
     });
     return tx;
