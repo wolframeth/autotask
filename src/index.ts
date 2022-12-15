@@ -197,16 +197,21 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             cowSwapQuote.quote.buyAmount,
             cowSwapQuote.quote.validTo,
             cowSwapQuote.quote.feeAmount,
-            ethers.utils.formatBytes32String(
-              cowSwapQuote.quote.kind,
-            ) as CowswapTradeKindEnum,
-            ethers.utils.formatBytes32String(
-              cowSwapQuote.quote.sellTokenBalance,
+            ethers.utils.keccak256(
+              ethers.utils.solidityPack(['string'], [cowSwapQuote.quote.kind]),
             ),
-            ethers.utils.formatBytes32String(
-              cowSwapQuote.quote.buyTokenBalance,
+            ethers.utils.keccak256(
+              ethers.utils.solidityPack(
+                ['string'],
+                [cowSwapQuote.quote.sellTokenBalance],
+              ),
             ),
-            cowSwapOrderHash,
+            ethers.utils.keccak256(
+              ethers.utils.solidityPack(
+                ['string'],
+                [cowSwapQuote.quote.buyTokenBalance],
+              ),
+            ),
           );
           if (approveOrder === false) {
             console.log(
@@ -264,14 +269,21 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             cowSwapQuote.quote.buyAmount,
             cowSwapQuote.quote.validTo,
             cowSwapQuote.quote.feeAmount,
-            ethers.utils.formatBytes32String(cowSwapQuote.quote.kind),
-            ethers.utils.formatBytes32String(
-              cowSwapQuote.quote.sellTokenBalance,
+            ethers.utils.keccak256(
+              ethers.utils.solidityPack(['string'], [cowSwapQuote.quote.kind]),
             ),
-            ethers.utils.formatBytes32String(
-              cowSwapQuote.quote.buyTokenBalance,
+            ethers.utils.keccak256(
+              ethers.utils.solidityPack(
+                ['string'],
+                [cowSwapQuote.quote.sellTokenBalance],
+              ),
             ),
-            cowSwapOrderHash,
+            ethers.utils.keccak256(
+              ethers.utils.solidityPack(
+                ['string'],
+                [cowSwapQuote.quote.buyTokenBalance],
+              ),
+            ),
           );
           if (approveOrder === false) {
             console.log(

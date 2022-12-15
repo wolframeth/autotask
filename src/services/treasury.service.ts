@@ -515,7 +515,6 @@ export async function createTxApproveCowswapOrder(
   kind: string,
   sellTokenBalance: string,
   buyTokenBalance: string,
-  orderUid: string,
 ) {
   try {
     if (
@@ -528,14 +527,11 @@ export async function createTxApproveCowswapOrder(
     ) {
       throw 'Invalid buyAmount or sellAmount';
     }
-    if (ethers.utils.isBytesLike(orderUid) === false) {
-      throw 'Invalid OrderUID';
-    }
     if (isValidTimestamp(validTo * 1000) === false) {
       throw 'Invalid validTimeOfOrder';
     }
     const tradeKinds = Object.values(CowswapTradeKindEnum).map((k) =>
-      ethers.utils.formatBytes32String(k),
+      ethers.utils.keccak256(ethers.utils.solidityPack(['string'], [k])),
     );
     if (tradeKinds.includes(kind) === false) {
       throw 'Invalid kind';
@@ -596,7 +592,6 @@ export async function createTxApproveCowswapOrder(
       kind,
       sellTokenBalance,
       buyTokenBalance,
-      orderUid,
     ]);
     const encodeGpv2Call = ethers.utils.solidityPack(
       ['uint8', 'address', 'uint256', 'uint256', 'bytes'],

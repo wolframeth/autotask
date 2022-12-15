@@ -11,6 +11,14 @@ export const GPV2_ABI = [
     type: 'constructor',
   },
   {
+    anonymous: false,
+    inputs: [
+      { indexed: false, internalType: 'address', name: 't', type: 'address' },
+    ],
+    name: 'test',
+    type: 'event',
+  },
+  {
     inputs: [
       { internalType: 'contract IERC20', name: 'sellToken', type: 'address' },
       { internalType: 'contract IERC20', name: 'buyToken', type: 'address' },
@@ -18,11 +26,10 @@ export const GPV2_ABI = [
       { internalType: 'uint256', name: 'sellAmount', type: 'uint256' },
       { internalType: 'uint256', name: 'buyAmount', type: 'uint256' },
       { internalType: 'uint32', name: 'validTo', type: 'uint32' },
-      { internalType: 'uint256', name: 'feeAmountBP', type: 'uint256' },
+      { internalType: 'uint256', name: 'feeAmount', type: 'uint256' },
       { internalType: 'bytes32', name: 'kind', type: 'bytes32' },
       { internalType: 'bytes32', name: 'sellTokenBalance', type: 'bytes32' },
       { internalType: 'bytes32', name: 'buyTokenBalance', type: 'bytes32' },
-      { internalType: 'bytes', name: 'orderUid', type: 'bytes' },
     ],
     name: 'approveOrder',
     outputs: [],

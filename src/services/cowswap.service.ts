@@ -99,7 +99,9 @@ export async function cowSwapPlaceOrder(
       sellAmount: sellAmount,
       buyAmount: buyAmount,
       validTo: validTimeOfOrder,
-      appData: ethers.constants.HashZero,
+      appData: ethers.utils.keccak256(
+        ethers.utils.solidityPack(['string'], ['ENS Treasury']),
+      ),
       feeAmount: feeAmount,
       kind: tradeKind,
       partiallyFillable: false,
@@ -212,7 +214,9 @@ export async function getCowSwapTradeQuote(
       buyToken: trueBuyToken,
       receiver: trueDestination,
       validTo: validTimeForOrder,
-      appData: ethers.constants.HashZero,
+      appData: ethers.utils.keccak256(
+        ethers.utils.solidityPack(['string'], ['ENS Treasury']),
+      ),
       partiallyFillable: false,
       sellTokenBalance: 'erc20',
       buyTokenBalance: 'erc20',

@@ -30,7 +30,7 @@ export const generalConfigurations = {
    */
   cowswapGpv2ContractsAddress: {
     [EnvironmentsEnum.MAINNET]: '',
-    [EnvironmentsEnum.GOERLI]: '0xCC8De478c257e079c08BAf7847eC74681e3fa427',
+    [EnvironmentsEnum.GOERLI]: '0xc6229Eabcea8EA3eA5A06C1Cdf24e02F5eF8Ad99',
   },
 
   /**
@@ -99,7 +99,7 @@ export const generalConfigurations = {
       USDC: 1,
     },
     [EnvironmentsEnum.GOERLI]: {
-      COW: 2000,
+      COW: 4000,
     },
   },
 
