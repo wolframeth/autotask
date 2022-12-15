@@ -513,9 +513,9 @@ export async function createTxApproveCowswapOrder(
   validTo: number,
   feeAmount: string,
   kind: string,
-  partiallyFillable: boolean,
   sellTokenBalance: string,
   buyTokenBalance: string,
+  orderUid: string,
 ) {
   try {
     if (
@@ -527,6 +527,9 @@ export async function createTxApproveCowswapOrder(
       parseInt(sellAmount) < 0
     ) {
       throw 'Invalid buyAmount or sellAmount';
+    }
+    if (ethers.utils.isBytesLike(orderUid) === false) {
+      throw 'Invalid OrderUID';
     }
     if (isValidTimestamp(validTo * 1000) === false) {
       throw 'Invalid validTimeOfOrder';
@@ -591,9 +594,9 @@ export async function createTxApproveCowswapOrder(
       validTo,
       feeAmount,
       kind,
-      partiallyFillable,
       sellTokenBalance,
       buyTokenBalance,
+      orderUid,
     ]);
     const encodeGpv2Call = ethers.utils.solidityPack(
       ['uint8', 'address', 'uint256', 'uint256', 'bytes'],

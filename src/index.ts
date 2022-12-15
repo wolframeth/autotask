@@ -21,7 +21,11 @@ import {
 } from './services/treasury.service';
 import { BigNumber, ethers } from 'ethers';
 import { ERC20ABI } from './models/contracts/erc20.abi';
-import { getETHBalance, resolveAddress } from './services/accounts.service';
+import {
+  getERC20Balance,
+  getETHBalance,
+  resolveAddress,
+} from './services/accounts.service';
 import {
   getCowSwapPlaceOrder,
   getCowSwapTradeQuote,
@@ -39,6 +43,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
   environment: EnvironmentsEnum,
   provider: any,
   multiSigETHBalance: BigNumber,
+  multiSigWANDETHBalance: BigNumber,
   stablecoinsShortfalls: { [token: string]: StableCoinModel },
   ensWalletAddress: string,
 ) {
@@ -50,14 +55,6 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
       throw false;
     }
     const batchedTransactions = [];
-    console.log(
-      'Creating tx for ETH to WETH multisig balance of:',
-      ethers.utils.formatEther(multiSigETHBalance),
-    );
-    if (multiSigETHBalance.lte(0) === true) {
-      console.log('Multisig has no ETH to swap for stablecoins.');
-      throw false;
-    }
     let ensWallet: string | boolean = ensWalletAddress;
     let ensWalletIsEns = ensWallet.indexOf('.eth') > -1;
     if (ensWallet.indexOf('.eth') > -1) {
@@ -69,18 +66,25 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
     ) {
       throw 'Invalid ensWallet address';
     }
-    const convertETHToWethTx = createTxDepositETHtoWETHContract(
-      environment,
-      provider,
-      multiSigETHBalance,
-    );
-    if (convertETHToWethTx === false) {
+
+    if (multiSigETHBalance.gt(0) === true) {
       console.log(
-        'Failed to create tx for ETH to WETH multisig balance conversion. Aborting operation.',
+        'Creating tx for ETH to WETH multisig balance of:',
+        ethers.utils.formatEther(multiSigETHBalance),
       );
-      throw false;
+      const convertETHToWethTx = createTxDepositETHtoWETHContract(
+        environment,
+        provider,
+        multiSigETHBalance,
+      );
+      if (convertETHToWethTx === false) {
+        console.log(
+          'Failed to create tx for ETH to WETH multisig balance conversion. Aborting operation.',
+        );
+        throw false;
+      }
+      batchedTransactions.push(convertETHToWethTx);
     }
-    batchedTransactions.push(convertETHToWethTx);
 
     /**
      * Get quote from Coswap to estimate WETH required to exchange for stablecoin shortfall
@@ -113,14 +117,18 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
         }
         if (swapCost === undefined) {
           swapQuotes[s] = cowSwap as CowSwapSuccessResponseModel;
-          swapCost = ethers.BigNumber.from(cowSwap.quote.sellAmount);
+          swapCost = ethers.BigNumber.from(cowSwap.quote.sellAmount).add(
+            ethers.BigNumber.from(cowSwap.quote.feeAmount),
+          );
         } else {
           swapQuotes[s] = cowSwap as CowSwapSuccessResponseModel;
-          swapCost.add(ethers.BigNumber.from(cowSwap.quote.sellAmount));
+          swapCost
+            .add(ethers.BigNumber.from(cowSwap.quote.sellAmount))
+            .add(ethers.BigNumber.from(cowSwap.quote.feeAmount));
         }
       }
       const hasMultiSigEnoughBalanceForSwap = (swapCost as BigNumber).lte(
-        multiSigETHBalance,
+        multiSigWANDETHBalance,
       );
 
       if (
@@ -144,7 +152,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
         configuration.cowswapGpv2RelayerAddress[environment],
         hasMultiSigEnoughBalanceForSwap === true
           ? swapCost
-          : multiSigETHBalance,
+          : multiSigWANDETHBalance,
       );
       if (approveGpv2RelayerToTransferWethTx === false) {
         console.log(
@@ -192,13 +200,13 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             ethers.utils.formatBytes32String(
               cowSwapQuote.quote.kind,
             ) as CowswapTradeKindEnum,
-            cowSwapQuote.quote.partiallyFillable,
             ethers.utils.formatBytes32String(
               cowSwapQuote.quote.sellTokenBalance,
             ),
             ethers.utils.formatBytes32String(
               cowSwapQuote.quote.buyTokenBalance,
             ),
+            cowSwapOrderHash,
           );
           if (approveOrder === false) {
             console.log(
@@ -209,7 +217,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
           batchedTransactions.push(approveOrder);
         }
       } else {
-        const ethToBeDistributedForEachStablecoin = multiSigETHBalance.div(
+        const ethToBeDistributedForEachStablecoin = multiSigWANDETHBalance.div(
           Object.keys(stablecoinsShortfalls).length,
         );
         for (const s of Object.keys(stablecoinsShortfalls)) {
@@ -257,13 +265,13 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
             cowSwapQuote.quote.validTo,
             cowSwapQuote.quote.feeAmount,
             ethers.utils.formatBytes32String(cowSwapQuote.quote.kind),
-            cowSwapQuote.quote.partiallyFillable,
             ethers.utils.formatBytes32String(
               cowSwapQuote.quote.sellTokenBalance,
             ),
             ethers.utils.formatBytes32String(
               cowSwapQuote.quote.buyTokenBalance,
             ),
+            cowSwapOrderHash,
           );
           if (approveOrder === false) {
             console.log(
@@ -282,7 +290,7 @@ export async function createTxDepositEthToWethAndExchangeInCowSwapForStableCoins
     const wethRemainingBalance =
       totalAmountWethSpent === undefined
         ? ethers.BigNumber.from(0)
-        : multiSigETHBalance.sub(totalAmountWethSpent);
+        : multiSigWANDETHBalance.sub(totalAmountWethSpent);
     if (wethRemainingBalance.gt(0) === true) {
       const approveRoleModifierToTransferWethTx = createTxApproveERC20Transfer(
         provider,
@@ -571,13 +579,23 @@ export async function app(
       provider,
       configuration.ensController[environment],
     );
+    let multiSigWETHBalance = await getERC20Balance(
+      provider,
+      ensMultisigWallet,
+      generalConfigurations.wethAddress[environment],
+    );
+    let multiSigActualETHBalance = await getETHBalance(
+      provider,
+      ensMultisigWallet,
+    );
     let multiSigETHBalance = await getETHBalance(provider, ensMultisigWallet);
-    if (multiSigETHBalance === false) {
+    if (multiSigETHBalance === false || multiSigWETHBalance === false) {
       console.log(
         'Failed to get multisig ETH balance for WETH deposit. Aborting operation.',
       );
       throw false;
     }
+    multiSigETHBalance = multiSigETHBalance.add(multiSigWETHBalance);
     multiSigETHBalance = multiSigETHBalance.add(controllerBalance);
     if ((multiSigETHBalance as BigNumber).gt(0) === true) {
       const depositAndExchangeTx =
@@ -585,6 +603,7 @@ export async function app(
           configuration,
           environment,
           provider,
+          multiSigActualETHBalance,
           multiSigETHBalance,
           stablecoinsShortfalls,
           ensWallet,

@@ -123,7 +123,7 @@ export async function getCowSwapPlaceOrder(
       throw result;
     }
     const parsedData = await fetchCall.text();
-    return parsedData;
+    return parsedData.replace(/"/g, '');
   } catch (e) {
     console.log('(getCowSwapPlaceOrder) An unknown error has occured', e);
     return false;
