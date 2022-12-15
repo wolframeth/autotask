@@ -99,7 +99,7 @@ export const generalConfigurations = {
       USDC: 1,
     },
     [EnvironmentsEnum.GOERLI]: {
-      COW: 4000,
+      COW: 5000,
     },
   },
 
